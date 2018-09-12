@@ -1,7 +1,8 @@
 const tape = require('tape')
 const {
   test, match, replace, exec,
-  id, key, index, where, recursive, fork, alt, pipe
+  id, key, index, where, recursive, fork, alt, pipe,
+  dx
 } = require('./index')
 
 tape('id', (t) => {
@@ -144,5 +145,15 @@ tape('pipe', (t) => {
   const out2 = replace(lens2, { foo: { quux: { flerb: { bar: 1 } } } }, 2)
   t.deepEquals(out2, { foo: { quux: { flerb: { bar: 2 } } } },
     'pipe.replace recursive updates')
+  t.end()
+})
+
+tape('template string', (t) => {
+  const [res] = match(dx`.foo`, { foo: 1 })
+  t.deepEquals(res, 1)
+  const [...res2] = match(dx`.foo , .bar`, { foo: 1, bar: 2 })
+  t.deepEquals(res2, [1, 2])
+  const [res3] = match(dx`.foo .bar`, { foo: { bar: 3 } })
+  t.deepEquals(res3, 3)
   t.end()
 })

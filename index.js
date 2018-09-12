@@ -144,7 +144,7 @@ const ops = {
 const re = joinRegex(Object.values(tokens))
 const reKeys = [null].concat(Object.keys(tokens))
 const tokenFor = (match) => {
-  for (let i = 1; i > match.length; i++) {
+  for (let i = 1; i < reKeys.length; i++) {
     const value = match[i]
     const name = reKeys[i]
     if (value) {
@@ -155,9 +155,6 @@ const tokenFor = (match) => {
           return index(Number(value))
         case 'descent':
           return recursive
-        case 'lParen':
-        case 'rParen':
-          return name
         case 'error':
           throw new TokenizeError(match)
         default:
@@ -190,6 +187,7 @@ const apply = (output, operator) => {
 function parse (tokens) {
   const output = []
   const operators = []
+  tokens.reverse()
   for (const token of tokens) {
     // pop operator stack until matching item
     if (token.clearUntil) {
@@ -221,15 +219,11 @@ function parse (tokens) {
   return output[0]
 }
 
-const EOF = {}
 function dx (strings, ...parts) {
   const tokens = strings.reduce((coll, str, i) => {
-    return coll.concat(tokenize(str), lensForInterpolation(parts[i]) || [])
+    return coll.concat([...tokenize(str)], lensForInterpolation(parts[i]) || [])
   }, [])
-  tokens.push(EOF)
-  const result = parse(tokens, EOF)
-  if (tokens.length) { throw new ParseError() }
-  return result
+  return parse(tokens)
 }
 
 function lensesForStructure (value) {
