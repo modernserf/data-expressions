@@ -5,12 +5,11 @@ class UnexpectedEndOfInput extends Error {}
 class BadOperator extends Error {}
 class ParseError extends Error {}
 
-const id = ({
-  match: (focus) => [focus],
-  replace: (focus, value) => [value]
-})
+function * id (focus) {
+  yield { match: focus, replace: (value) => value }
+}
 
-const required = (lens) => lens.required
+const optional = (gen) => gen.optional
 
 // TODO:
 // slices: `[start:end]`
@@ -20,112 +19,88 @@ const required = (lens) => lens.required
 // `where` clauses
 // `update` takes callback (like lens `over`)
 
+function hasKey (focus, key) {
+  if (!focus || typeof focus !== 'object') { return false }
+  return key in focus
+}
+
 // `.foo` |`${string}`
-const key = (key) => ({
-  match: (focus) => key in focus ? [focus[key]] : [{}],
-  replace: (focus, value) => [{ ...focus, [key]: value }],
-  // `.foo!` | `.${string}!`
-  required: ({
-    match: (focus) => key in focus ? [focus[key]] : [],
-    replace: (focus, value) => key in focus ? [{ ...focus, [key]: value }] : []
-  })
-})
+const key = (key) => function * (focus) {
+  if (hasKey(focus, key)) {
+    yield {
+      match: focus[key],
+      replace: (value) => ({ ...focus, [key]: value })
+    }
+  }
+}
 
 // `.0` | `${number}`
-const index = (i) => ({
-  match: (focus) => i > focus.slice(i, i + 1),
-  replace: (focus, value) => {
-    const copy = focus.slice(0)
-    copy.splice(i, 1, value)
-    return copy
-  }
-})
+const index = (i) => function * (focus) {
+  // allow indexing from end
+  if (i < 0) { i = focus.length + i }
 
-// `..`
-function * pathEntries (x, prev = id) {
-  for (const [lens, value] of lensesForStructure(x)) {
-    yield [pipe(prev, lens), value]
-  }
-}
-
-// TODO: how does update work on a circular structure?
-function * bfs (focus) {
-  const q = [[id, focus]]
-  for (let i = 0; i < ~(1 << 31); i++) {
-    if (!q.length) { return }
-    const [lens, value] = q.shift()
-    yield [lens, value]
-    q.push(...pathEntries(value, lens))
-  }
-  throw new TooManyIterations()
-}
-
-const recursive = {
-  * match (focus) {
-    for (const [, value] of bfs(focus)) {
-      yield value
-    }
-  },
-  * replace (focus, value) {
-    let result = focus
-    for (const [lens] of bfs(focus)) {
-      for (const updated of lens.replace(result, value)) {
-        result = updated
+  if (i in focus) {
+    yield {
+      match: focus[i],
+      replace: (value) => {
+        const copy = focus.slice(0)
+        copy[i] = value
+        return copy
       }
     }
-    yield result
+  }
+}
+
+const where = (fn) => function * (focus) {
+  if (fn(focus)) {
+    yield { match: focus, replace: (value) => value }
+  }
+}
+
+// `..`
+// TODO: how should `replace` work on a circular structure?
+function * recursive (focus) {
+  const q = [[id, focus]]
+  for (const [lens, value] of q) {
+    yield * lens(focus)
+    // yes, you can modify an array while you're iterating over it
+    for (const [childLens, childValue] of lensesForStructure(value)) {
+      q.push([pipe(lens, childLens), childValue])
+    }
   }
 }
 
 // `${x} , ${y}`
-const fork = (x, y) => ({
-  match: (focus) => [...x.match(focus), ...y.match(focus)],
-  * replace (focus, value) {
-    for (const updated of x.replace(focus, value)) {
-      yield * y.replace(updated, value)
-    }
-  }
-})
+const fork = (x, y) => function * (focus) {
+  yield * x(focus)
+  yield * y(focus)
+}
 
-function * altBody (x, y) {
+// return y if x succeds
+// `${x} & ${y}`
+
+const alt = (x, y) => function * (focus) {
   let done = false
-  for (const res of x) {
+  for (const res of x(focus)) {
     done = true
     yield res
   }
   if (!done) {
-    yield * y
+    yield * y(focus)
   }
 }
 
-// `${x} | ${y}`
-const alt = (x, y) => ({
-  * match (focus) {
-    yield * altBody(x.match(focus), y.match(focus))
-  },
-  * replace (focus, value) {
-    yield * altBody(x.replace(focus, value), y.replace(focus, value))
-  }
-})
-
-// `${x}?`
-const maybe = (x) => alt(x, id)
-
 // `${x} ${y}`
-const pipe = (x, y) => ({
-  * match (focus) {
-    for (const result of x.match(focus)) {
-      yield * y.match(result)
-    }
-  },
-  * replace (focus, value) {
-    for (const result of x.match(focus)) {
-      for (const updated of y.replace(result, value)) {
-        yield * x.replace(focus, updated)
+const pipe = (x, y) => function * (focus) {
+  for (const outer of x(focus)) {
+    for (const inner of y(outer.match)) {
+      yield {
+        match: inner.match,
+        replace: (value) => outer.replace(inner.replace(value))
       }
     }
   }
-})
+}
 
 function lensForInterpolation (value) {
   switch (typeof value) {
@@ -135,10 +110,7 @@ function lensForInterpolation (value) {
       return index(value)
     // TODO: regex?
   }
-  if (value.match && value.replace) {
-    return value
-  }
-  throw new UnknownValueError()
+  return value
 }
 
 const joinRegex = (res) => new RegExp(res.map((re) => {
@@ -152,8 +124,7 @@ const tokens = {
   descent: /(\.\.)/,
   alt: /(\s*\|\s*)/,
   fork: /(\s*,\s*)/,
-  maybe: /(\?)/,
-  required: /(!)/,
+  optional: /(\?)/,
   lParen: /(\(\s*)/,
   rParen: /(\)\s*)/,
   whitespace: /(\s+)/,
@@ -165,8 +136,9 @@ const ops = {
   fork: { precedence: 1, operator: fork, arity: 2 },
   alt: { precedence: 2, operator: alt, arity: 2 },
   whitespace: { precedence: 3, operator: pipe, arity: 2 },
-  maybe: { precedence: 4, operator: maybe, arity: 1 },
-  required: { precedence: 4, operator: required, arity: 1 }
+  optional: { precedence: 4, operator: optional, arity: 1 },
+  lParen: { precedence: 0, name: 'lParen' },
+  rParen: { precedence: 5, clearUntil: 'lParen' }
 }
 
 const re = joinRegex(Object.values(tokens))
@@ -215,30 +187,23 @@ const apply = (output, operator) => {
   output.push(operator.operator(...args))
 }
 
-function parse (tokens, endToken) {
+function parse (tokens) {
   const output = []
   const operators = []
-  while (tokens.length) {
-    const token = tokens.shift()
-    if (token === endToken) {
-      // clear operators stack
+  for (const token of tokens) {
+    // pop operator stack until matching item
+    if (token.clearUntil) {
       while (operators.length) {
-        apply(output, operators.pop())
+        const op = operators.pop()
+        if (op.name === token.clearUntil) { break }
+        apply(output, op)
       }
-      if (output.length !== 1) {
-        throw new ParseError(tokens, output)
-      }
-      return output[0]
-    }
-
-    // "guarded recursion" for groupings
-    if (token === 'lParen') {
-      output.push(parse(tokens, 'rParen'))
-    // shunting yard: pop operator stack
+      throw new UnexpectedEndOfInput()
+    // pop operator stack
     } else if (token.operator && operators.length && last(operators).precedence <= token.precedence) {
       apply(output, operators.pop())
       operators.push(token)
-    // shunting yard: push operator
+    // push operator
     } else if (token.operator) {
       operators.push(token)
     // value
@@ -246,7 +211,14 @@ function parse (tokens, endToken) {
       output.push(token)
     }
   }
-  throw new UnexpectedEndOfInput(tokens)
+  // clear operators stack
+  while (operators.length) {
+    apply(output, operators.pop())
+  }
+  if (output.length !== 1) {
+    throw new ParseError(tokens, output)
+  }
+  return output[0]
 }
 
 const EOF = {}
@@ -272,4 +244,42 @@ function lensesForStructure (value) {
   }
 }
 
-module.exports = { id, key, index, recursive, fork, alt, maybe, pipe, dx }
+function test (lens, focus) {
+  for (_ of lens(focus)) { return true }
+  return false
+}
+
+function * match (lens, focus) {
+  for (const { match } of lens(focus)) {
+    yield match
+  }
+}
+
+function replace (lens, focus, value) {
+  for (const { replace } of lens(focus)) {
+    return replace(value)
+  }
+  return focus
+}
+
+function * exec (lens, focus, value) {
+  for (const { replace } of lens(focus)) {
+    yield replace(value)
+  }
+}
+
+module.exports = {
+  test,
+  match,
+  replace,
+  exec,
+  id,
+  key,
+  index,
+  where,
+  recursive,
+  fork,
+  alt,
+  pipe,
+  dx
+}
