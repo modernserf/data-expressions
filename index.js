@@ -12,9 +12,17 @@ const id = ({
 
 const required = (lens) => lens.required
 
+// TODO:
+// slices: `[start:end]`
+// spread / collect (match only)
+// type checkers
+// object builders
+// `where` clauses
+// `update` takes callback (like lens `over`)
+
 // `.foo` |`${string}`
 const key = (key) => ({
-  match: (focus) => key in focus ? [focus[key]] : [],
+  match: (focus) => key in focus ? [focus[key]] : [{}],
   replace: (focus, value) => [{ ...focus, [key]: value }],
   // `.foo!` | `.${string}!`
   required: ({
