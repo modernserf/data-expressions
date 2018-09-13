@@ -1,5 +1,3 @@
-class TooManyIterations extends Error {}
-class UnknownValueError extends Error {}
 class TokenizeError extends Error {}
 class UnexpectedEndOfInput extends Error {}
 class BadOperator extends Error {}
@@ -57,6 +55,12 @@ const where = (fn) => function * (focus) {
   }
 }
 
+function * spread (focus) {
+  for (const [lens] of lensesForStructure(focus)) {
+    yield * lens(focus)
+  }
+}
+
 // `..`
 // TODO: how should `replace` work on a circular structure?
 function * recursive (focus) {
@@ -67,6 +71,14 @@ function * recursive (focus) {
     for (const [childLens, childValue] of lensesForStructure(value)) {
       q.push([pipe(lens, childLens), childValue])
     }
+  }
+}
+
+const collect = (x) => function * (focus) {
+  const collected = [...x(focus)]
+  yield {
+    match: collected.map(({ match }) => match),
+    replace: (value) => collected.map(({ replace }) => replace(value))
   }
 }
 
@@ -239,7 +251,7 @@ function lensesForStructure (value) {
 }
 
 function test (lens, focus) {
-  for (_ of lens(focus)) { return true }
+  for (const _ of lens(focus)) { return true }
   return false
 }
 
@@ -256,9 +268,9 @@ function replace (lens, focus, value) {
   return focus
 }
 
-function * exec (lens, focus, value) {
-  for (const { replace } of lens(focus)) {
-    yield replace(value)
+function * exec (lens, focus, fn) {
+  for (const { match, replace } of lens(focus)) {
+    yield replace(fn(match))
   }
 }
 
@@ -271,7 +283,9 @@ module.exports = {
   key,
   index,
   where,
+  spread,
   recursive,
+  collect,
   fork,
   alt,
   pipe,
