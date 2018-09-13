@@ -1,7 +1,7 @@
 const tape = require('tape')
 const {
   test, match, replace, exec,
-  id, key, index, where, spread, recursive, collect, fork, alt, pipe,
+  id, key, index, where, spread, recursive, collect, fork, alt, pipe, object,
   dx
 } = require('./index')
 
@@ -28,8 +28,8 @@ tape('key', (t) => {
 })
 
 tape.skip('key.optional', (t) => {
-  const out2 = replace(key('baz').optional, { foo: { bar: 1 } }, { quux: 2 })
-  t.deepEquals(out2, { foo: { bar: 1 }, baz: { quux: 2 } },
+  const out = replace(key('baz').optional, { foo: { bar: 1 } }, { quux: 2 })
+  t.deepEquals(out, { foo: { bar: 1 }, baz: { quux: 2 } },
     'key.replace inserts values at a new key')
   t.end()
 })
@@ -183,6 +183,19 @@ tape('pipe', (t) => {
   const out2 = replace(lens2, { foo: { quux: { flerb: { bar: 1 } } } }, 2)
   t.deepEquals(out2, { foo: { quux: { flerb: { bar: 2 } } } },
     'pipe.replace recursive updates')
+  t.end()
+})
+
+tape('object', (t) => {
+  const lens = object({
+    foo: where((x) => x > 0),
+    bar: where((x) => typeof x === 'string')
+  })
+  const focus = { foo: 10, bar: 'a string', baz: ['else'] }
+  const [res] = match(lens, focus)
+  t.deepEquals(res, { foo: 10, bar: 'a string' })
+  const out = replace(lens, focus, { foo: 20, bar: 'flerb' })
+  t.deepEquals(out, { foo: 20, bar: 'flerb', baz: ['else'] })
   t.end()
 })
 

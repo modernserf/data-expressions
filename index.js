@@ -127,6 +127,35 @@ const pipe = (x, y) => function * (focus) {
   }
 }
 
+// `{foo: ${x}, bar: ${y} ...}`
+function * entryInit (focus) {
+  yield { match: {}, replace: () => focus }
+}
+
+const entryReducer = (acc, [key, lens]) => function * (focus) {
+  if (!hasKey(focus, key)) { return }
+
+  for (const base of acc(focus)) {
+    for (const inner of lens(focus[key])) {
+      yield {
+        match: {
+          ...base.match,
+          [key]: inner.match
+        },
+        replace: (value) => ({
+          ...base.replace(value),
+          [key]: inner.replace(value[key])
+        })
+      }
+    }
+  }
+}
+
+const object = (object) => function * (focus) {
+  const entries = Object.entries(object)
+  yield * entries.reduce(entryReducer, entryInit)(focus)
+}
+
 function lensForInterpolation (value) {
   switch (typeof value) {
     case 'string':
@@ -303,5 +332,6 @@ module.exports = {
   fork,
   alt,
   pipe,
+  object,
   dx
 }
