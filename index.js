@@ -74,11 +74,24 @@ function * recursive (focus) {
   }
 }
 
-const collect = (x) => function * (focus) {
-  const collected = [...x(focus)]
+function defaultReducer (l = { match: [], replace: () => [] }, r) {
+  return {
+    match: l.match.concat([r.match]),
+    replace: (value) => l.replace(value).concat([r.replace(value)])
+  }
+}
+const collect = (x, reducer = defaultReducer) => function * (focus) {
+  let collected
+  for (const lens of x(focus)) {
+    collected = reducer(collected, lens)
+  }
+  yield collected
+}
+
+const project = (fn) => function * (focus) {
   yield {
-    match: collected.map(({ match }) => match),
-    replace: (value) => collected.map(({ replace }) => replace(value))
+    match: fn(focus),
+    replace: (value) => value
   }
 }
 
@@ -286,6 +299,7 @@ module.exports = {
   spread,
   recursive,
   collect,
+  project,
   fork,
   alt,
   pipe,
