@@ -1,9 +1,11 @@
 const tape = require('tape')
 const {
   test, match, replace, exec,
-  id, key, index, where, spread, recursive, collect, fork, alt, pipe, object,
+  id, key, index, where, spread, recursive, collect, alt, pipe, object,
   dx
 } = require('./index')
+const { parse } = require('./parser')
+const p = (strs, ...items) => parse(strs, items)
 
 tape('id', (t) => {
   const [res] = match(id, { foo: 1 })
@@ -117,41 +119,6 @@ tape('recursive', (t) => {
   t.end()
 })
 
-tape('fork', (t) => {
-  const lens = fork(key('foo'), key('bar'))
-  const [...res] = match(lens, { foo: 1, bar: 2, baz: 3 })
-  t.deepEquals(res, [1, 2],
-    'fork.match returns multiple items on success')
-  const [...res2] = match(lens, { foo: 1, quux: 2 })
-  t.deepEquals(res2, [1],
-    'fork.match allows branches to fail')
-  const [...out] = exec(lens, { foo: 1, bar: 2, baz: 3 }, () => 10)
-  t.deepEquals(out, [
-    { foo: 10, bar: 2, baz: 3 },
-    { foo: 1, bar: 10, baz: 3 }
-  ], 'fork.replace returns multiple items on success')
-  const [...out2] = exec(lens, { foo: 1, quux: 2 }, () => 10)
-  t.deepEquals(out2, [{ foo: 10, quux: 2 }],
-    'fork.replace allows branches to fail')
-  t.end()
-})
-
-tape('collect', (t) => {
-  const lens = collect(fork(key('foo'), key('bar')))
-  const [res] = match(lens, { foo: 1, bar: 2, baz: 3 })
-  t.deepEquals(res, [1, 2],
-    'collect.match returns an array of results')
-  const [res2] = match(lens, { foo: 1, quux: 2 })
-  t.deepEquals(res2, [1],
-    'collect.match propagates failure')
-  const out = replace(lens, { foo: 1, bar: 2, baz: 3 }, 10)
-  t.deepEquals(out, [
-    { foo: 10, bar: 2, baz: 3 },
-    { foo: 1, bar: 10, baz: 3 }
-  ], 'collect.replace returns an array of results')
-  t.end()
-})
-
 tape('alt', (t) => {
   const lens = alt(key('foo'), key('bar'))
   const [res] = match(lens, { foo: 1, baz: 3 })
@@ -168,6 +135,27 @@ tape('alt', (t) => {
   const out2 = replace(lens, { bar: 2, baz: 3 }, 10)
   t.deepEquals(out2, { bar: 10, baz: 3 },
     'alt.replace on second item')
+  const [...out3] = exec(lens, { foo: 1, bar: 2, baz: 3 }, () => 10)
+  t.deepEquals(out3, [
+    { foo: 10, bar: 2, baz: 3 },
+    { foo: 1, bar: 10, baz: 3 }
+  ], 'alt.replace returns multiple items on success')
+  t.end()
+})
+
+tape('collect', (t) => {
+  const lens = collect(alt(key('foo'), key('bar')))
+  const [res] = match(lens, { foo: 1, bar: 2, baz: 3 })
+  t.deepEquals(res, [1, 2],
+    'collect.match returns an array of results')
+  const [res2] = match(lens, { foo: 1, quux: 2 })
+  t.deepEquals(res2, [1],
+    'collect.match propagates failure')
+  const out = replace(lens, { foo: 1, bar: 2, baz: 3 }, 10)
+  t.deepEquals(out, [
+    { foo: 10, bar: 2, baz: 3 },
+    { foo: 1, bar: 10, baz: 3 }
+  ], 'collect.replace returns an array of results')
   t.end()
 })
 
@@ -202,9 +190,15 @@ tape('object', (t) => {
 tape('template string', (t) => {
   const [res] = match(dx`.foo`, { foo: 1 })
   t.deepEquals(res, 1)
-  const [...res2] = match(dx`.foo , .bar`, { foo: 1, bar: 2 })
+  const [...res2] = match(dx`.foo | .bar`, { foo: 1, bar: 2 })
   t.deepEquals(res2, [1, 2])
   const [res3] = match(dx`.foo .bar`, { foo: { bar: 3 } })
   t.deepEquals(res3, 3)
+  t.end()
+})
+
+tape('parser', (t) => {
+  const ast = p`.foo`
+  t.deepEquals(ast, { type: 'Key', value: 'foo', optional: false })
   t.end()
 })

@@ -6,6 +6,7 @@
   "scripts": {
     "lint": "eslint .",
     "test": "tape test.js | faucet",
+    "build-parser": "nearleyc grammar.ne -o grammar.build.js",
     "watch": "watch 'npm test'"
   },
   "author": "Justin Falcone <justin@justinfalcone.com>",
@@ -20,5 +21,9 @@
     "faucet": "0.0.1",
     "tape": "^4.9.1",
     "watch": "^1.0.2"
+  },
+  "dependencies": {
+    "moo": "^0.4.3",
+    "nearley": "^2.15.1"
   }
 }
