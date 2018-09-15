@@ -18,8 +18,8 @@ BaseExpr -> ("(" _) Expr _ ")"            {% _2 %}
          |  ("{" _) ObjectEntries _ "}"   {% tag("Object", null, "value") %}
          |  ("[" _) ArrayEntries _ "]"    {% tag("Array", null, "value") %}
          |  "." Key Opt                   {% tag("Key", null, "value", "optional") %}
-         |  "..."                         {% tag("Spread") %}
-         |  "*"                           {% tag("Recursive") %}
+         |  %spread                       {% tag("Spread") %}
+         |  %recursive                    {% tag("Recursive") %}
          |  %placeholder                  {% value %}
          |  %dqstring                     {% value %}
          |  %int                          {% value %}
@@ -45,7 +45,9 @@ const lexer = moo.compile({
   ident: /[A-Za-z_$][A-Za-z0-9_$]*/,
   placeholder: { match: /<\d+>/, value: (x) => Number(x.slice(1, -1)) },
   dqstring: { match: /"[^"\n]|(?:\\")"/, value: (x) => x.slice(1, -1) },
-  op: /[|&(){}[\].*,?:]+/
+  recursive: /\*\*/,
+  spread: /\*/,
+  op: /[|&(){}[\].,?:]+/
 })
 
 function tag (type, ...params) {

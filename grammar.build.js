@@ -10,7 +10,9 @@ const lexer = moo.compile({
   ident: /[A-Za-z_$][A-Za-z0-9_$]*/,
   placeholder: { match: /<\d+>/, value: (x) => Number(x.slice(1, -1)) },
   dqstring: { match: /"[^"\n]|(?:\\")"/, value: (x) => x.slice(1, -1) },
-  op: /[|&(){}[\].*,?:]+/
+  recursive: /\*\*/,
+  spread: /\*/,
+  op: /[|&(){}[\].,?:]+/
 })
 
 function tag (type, ...params) {
@@ -56,9 +58,11 @@ var grammar = {
     {"name": "BaseExpr$subexpression$3", "symbols": [{"literal":"["}, "_"]},
     {"name": "BaseExpr", "symbols": ["BaseExpr$subexpression$3", "ArrayEntries", "_", {"literal":"]"}], "postprocess": tag("Array", null, "value")},
     {"name": "BaseExpr", "symbols": [{"literal":"."}, "Key", "Opt"], "postprocess": tag("Key", null, "value", "optional")},
-    {"name": "BaseExpr", "symbols": [{"literal":"..."}], "postprocess": tag("Spread")},
-    {"name": "BaseExpr", "symbols": [{"literal":"*"}], "postprocess": tag("Recursive")},
+    {"name": "BaseExpr", "symbols": [(lexer.has("spread") ? {type: "spread"} : spread)], "postprocess": tag("Spread")},
+    {"name": "BaseExpr", "symbols": [(lexer.has("recursive") ? {type: "recursive"} : recursive)], "postprocess": tag("Recursive")},
     {"name": "BaseExpr", "symbols": [(lexer.has("placeholder") ? {type: "placeholder"} : placeholder)], "postprocess": value},
+    {"name": "BaseExpr", "symbols": [(lexer.has("dqstring") ? {type: "dqstring"} : dqstring)], "postprocess": value},
+    {"name": "BaseExpr", "symbols": [(lexer.has("int") ? {type: "int"} : int)], "postprocess": value},
     {"name": "ObjectEntries$macrocall$2", "symbols": ["Entry"]},
     {"name": "ObjectEntries$macrocall$3$subexpression$1", "symbols": ["_", {"literal":","}, "_"]},
     {"name": "ObjectEntries$macrocall$3", "symbols": ["ObjectEntries$macrocall$3$subexpression$1"]},

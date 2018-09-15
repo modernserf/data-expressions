@@ -3,16 +3,14 @@ function * id (focus) {
 }
 
 // TODO:
-// slices: `[start:end]`
-// type checkers
-// `update` takes callback (like lens `over`)
+// proptypes
 
 function hasKey (focus, key) {
   if (!focus || typeof focus !== 'object') { return false }
   return key in focus
 }
 
-// `.foo` |`${string}`
+// `.foo` |`.${string}`
 const key = (key) => function * (focus) {
   if (hasKey(focus, key)) {
     yield {
@@ -21,8 +19,14 @@ const key = (key) => function * (focus) {
     }
   }
 }
+key.optional = (key) => function * (focus) {
+  yield {
+    match: focus[key],
+    replace: (value) => ({ ...focus, [key]: value })
+  }
+}
 
-// `.0` | `${number}`
+// `.0` | `.${number}`
 const index = (i) => function * (focus) {
   // allow indexing from end
   if (i < 0) { i = focus.length + i }
@@ -35,6 +39,18 @@ const index = (i) => function * (focus) {
         copy[i] = value
         return copy
       }
+    }
+  }
+}
+index.optional = (i) => function * (focus) {
+  if (i < 0) { i = focus.length + i }
+
+  yield {
+    match: focus[i],
+    replace: (value) => {
+      const copy = focus.slice(0)
+      copy[i] = value
+      return Array.from(copy)
     }
   }
 }
@@ -58,15 +74,43 @@ const where = (fn) => function * (focus) {
 
 const value = (val) => where((x) => x === val)
 
-const regex = (re) => where((x) => re.test(x))
+const regex = (re) => function * (focus) {
+  // "fresh" regex on every invocation
+  re = new RegExp(re)
+  let match = re.exec(focus)
+  if (!match) { return }
+  yield {
+    match: match[0],
+    replace: (val) => focus.replace(new RegExp(re), val)
+  }
 
+  // handle stateful regexes
+  if (re.global || re.sticky) {
+    // eslint-disable-next-line no-cond-assign
+    while (match = re.exec(focus)) {
+      let lastIndex = match.lastIndex
+      yield {
+        match: match[0],
+        replace: (val) => {
+          // apply the replacement at match position,
+          // but don't mutate match regex
+          const reCopy = new RegExp(re)
+          reCopy.lastIndex = lastIndex
+          return focus.replace(reCopy, val)
+        }
+      }
+    }
+  }
+}
+
+// `*`
 function * spread (focus) {
   for (const [lens] of lensesForStructure(focus)) {
     yield * lens(focus)
   }
 }
 
-// `..`
+// `**`
 // TODO: how should `replace` work on a circular structure?
 function * recursive (focus) {
   const q = [[id, focus]]
@@ -130,8 +174,8 @@ function * objectInit (focus) {
   yield { match: {}, replace: () => focus }
 }
 
-function * arrayInit (focus) {
-  yield { match: [], replace: () => focus }
+function * arrayInit () {
+  yield { match: [], replace: () => [] }
 }
 
 const entryReducer = (acc, [key, lens]) => function * (focus) {
@@ -173,6 +217,7 @@ const arrayReducer = (acc, lens, index) => function * (focus) {
 }
 
 const array = (array) => function * (focus) {
+  if (array.length !== focus.length) { return }
   yield * array.reduce(arrayReducer, arrayInit)(focus)
 }
 
