@@ -7,7 +7,8 @@
     "lint": "eslint .",
     "test": "tape test.js | faucet",
     "build-parser": "nearleyc grammar.ne -o grammar.build.js",
-    "watch": "watch 'npm test'"
+    "watch": "watch 'npm test'",
+    "coverage": "nyc npm test"
   },
   "author": "Justin Falcone <justin@justinfalcone.com>",
   "license": "ISC",

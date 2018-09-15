@@ -21,6 +21,8 @@ BaseExpr -> ("(" _) Expr _ ")"            {% _2 %}
          |  "..."                         {% tag("Spread") %}
          |  "*"                           {% tag("Recursive") %}
          |  %placeholder                  {% value %}
+         |  %dqstring                     {% value %}
+         |  %int                          {% value %}
 
 ObjectEntries -> sep[Entry , (_ "," _)]   {% id %}
 Entry         -> Key (_ ":" _) Expr       {% tag("Entry", "key", null, "value") %}

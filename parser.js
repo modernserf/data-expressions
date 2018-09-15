@@ -43,6 +43,20 @@ const op = (lens, node, items) =>
 
 const opt = (lens, optional) => optional ? lens.optional : lens
 
+function lensForInterpolation (val) {
+  switch (typeof val) {
+    case 'function':
+      return val
+    case 'object':
+      if (val === null) { return lenses.value(null) }
+      if (Array.isArray(val)) { return lenses.array(val) }
+      if (val instanceof RegExp) { return lenses.regex(val) }
+      return lenses.object(val)
+    default:
+      return lenses.value(val)
+  }
+}
+
 function compile (node, items) {
   switch (node.type) {
     case 'Alt':
@@ -66,9 +80,11 @@ function compile (node, items) {
       return lenses.spread
     case 'Recursive':
       return lenses.recursive
-    // TODO: handle non-generator values
+    case 'dqstring':
+    case 'int':
+      return lenses.value(node.value)
     case 'placeholder':
-      return items[node.value]
+      return lensForInterpolation(items[node.value])
     default:
       throw new Error('Unknown AST Node')
   }

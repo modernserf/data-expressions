@@ -4,10 +4,7 @@ function * id (focus) {
 
 // TODO:
 // slices: `[start:end]`
-// spread / collect (match only)
 // type checkers
-// object builders
-// `where` clauses
 // `update` takes callback (like lens `over`)
 
 function hasKey (focus, key) {
@@ -42,6 +39,17 @@ const index = (i) => function * (focus) {
   }
 }
 
+const slice = (start, end) => function * (focus) {
+  yield {
+    match: focus.slice(start, end),
+    replace: (value) => [
+      ...focus.slice(0, start),
+      ...value,
+      ...focus.slice(end)
+    ]
+  }
+}
+
 const where = (fn) => function * (focus) {
   if (fn(focus)) {
     yield { match: focus, replace: (value) => value }
@@ -49,6 +57,8 @@ const where = (fn) => function * (focus) {
 }
 
 const value = (val) => where((x) => x === val)
+
+const regex = (re) => where((x) => re.test(x))
 
 function * spread (focus) {
   for (const [lens] of lensesForStructure(focus)) {
@@ -182,8 +192,10 @@ module.exports = {
   id,
   key,
   index,
+  slice,
   where,
   value,
+  regex,
   spread,
   recursive,
   collect,
