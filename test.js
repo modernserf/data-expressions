@@ -5,7 +5,6 @@ const {
   collect, project, alt, and, pipe, array, object
 } = require('./index')
 const { parse, dx } = require('./parser')
-const p = (strs, ...items) => parse(strs, items)
 
 tape('id', (t) => {
   const [res] = match(id, { foo: 1 })
@@ -252,17 +251,29 @@ tape('object', (t) => {
   t.end()
 })
 
+const p = (strs, ...items) => parse(strs, items)
 p.Key = (value, optional = false) => ({ type: 'Key', value, optional })
 p.ident = (value) => ({ type: 'ident', value })
 p.placeholder = (value) => ({ type: 'placeholder', value })
 p.int = (value) => ({ type: 'int', value })
 p.dqstring = (value) => ({ type: 'dqstring', value })
+p.Spread = { type: 'Spread' }
+p.Recursive = { type: 'Recursive' }
+p.Array = (...value) => ({ type: 'Array', value })
+p.Comp = (left, right) => ({ type: 'Comp', left, right })
 
-tape('parser.key', (t) => {
+tape('parser', (t) => {
   t.deepEquals(p`.foo`, p.Key(p.ident('foo')))
   t.deepEquals(p`.${123}?`, p.Key(p.placeholder(0), true))
   t.deepEquals(p`.1`, p.Key(p.int(1)))
   t.deepEquals(p`."foo bar"?`, p.Key(p.dqstring('foo bar'), true))
+  t.deepEquals(p`*`, p.Spread)
+  t.deepEquals(p`**`, p.Recursive)
+  t.throws(() => p`***`)
+  t.deepEquals(p`[]`, p.Array())
+  t.deepEquals(p`[.foo ]`, p.Array(p.Key(p.ident('foo'))))
+  t.deepEquals(p`.foo*`, p.Comp(p.Key(p.ident('foo')), p.Spread))
+  t.deepEquals(p`**.bar`, p.Comp(p.Recursive, p.Key(p.ident('bar'))))
   t.end()
 })
 

@@ -6,25 +6,25 @@ sep[ITEM, SEP] -> $ITEM ($SEP $ITEM {% _2 %}):* {% cons %}
 Expr    -> AltExpr  {% id %}
 
 # operators
-AltExpr  -> AltExpr "|" AndExpr   {% op("Alt") %}
+AltExpr  -> AltExpr "|" AndExpr   {% tag("Alt", "left", _, "right") %}
          |  AndExpr               {% id %}
-AndExpr  -> AndExpr "&" CompExpr  {% op("And") %}
+AndExpr  -> AndExpr "&" CompExpr  {% tag("And", "left", _, "right") %}
          |  CompExpr              {% id %}
-CompExpr -> CompExpr _ BaseExpr   {% op("Comp") %}
+CompExpr -> CompExpr BaseExpr     {% tag("Comp", "left", "right") %}
          |  BaseExpr              {% id %}
 
 BaseExpr -> "(" Expr ")"          {% _2 %}
-         |  "{" ObjectEntries "}" {% tag("Object", null, "value") %}
-         |  "[" ArrayEntries "]"  {% tag("Array", null, "value") %}
-         |  "." Key Opt           {% tag("Key", null, "value", "optional") %}
-         |  %spread               {% tag("Spread") %}
-         |  %recursive            {% tag("Recursive") %}
+         |  "{" ObjectEntries "}" {% tag("Object", _, "value") %}
+         |  "[" ArrayEntries "]"  {% tag("Array", _, "value") %}
+         |  "." Key Opt           {% tag("Key", _, "value", "optional") %}
+         |  "*"                   {% tag("Spread") %}
+         |  "**"                  {% tag("Recursive") %}
          |  %placeholder          {% value %}
          |  %dqstring             {% value %}
          |  %int                  {% value %}
 
 ObjectEntries -> sep[Entry, ","]  {% id %}
-Entry         -> Key ":" Expr     {% tag("Entry", "key", null, "value") %}
+Entry         -> Key ":" Expr     {% tag("Entry", "key", _, "value") %}
 ArrayEntries  -> sep[Expr, ","]   {% id %}
 
 Key   -> %dqstring                {% value %}
@@ -33,8 +33,6 @@ Key   -> %dqstring                {% value %}
       |  %placeholder             {% value %}
 Opt   -> "?":?                    {% ([str]) => !!str %}
 
-_  -> null
-
 @{%
 const moo = require("moo");
 const lexer = moo.compile({
@@ -42,9 +40,7 @@ const lexer = moo.compile({
   ident: /[A-Za-z_$][A-Za-z0-9_$]*/,
   placeholder: { match: /<\d+>/, value: (x) => Number(x.slice(1, -1)) },
   dqstring: { match: /"(?:\\"|[^"\n])+"/, value: (x) => x.slice(1, -1) },
-  recursive: /\*\*/,
-  spread: /\*/,
-  op: /[|&(){}[\].,:?]/,
+  op: /[|&(){}[\].,:?]|\*+/,
   ws: { match: /[ \t\n]+/, lineBreaks: true },
 })
 
@@ -55,6 +51,7 @@ lexer.next = () => {
     return tok
 }
 
+const _ = null;
 function tag (type, ...params) {
   return (args) =>
     args.reduce((coll, arg, i) => {
@@ -63,9 +60,6 @@ function tag (type, ...params) {
       }
       return coll;
     }, {type});
-}
-function op(type) {
-  return tag(type, "left", null, "right");
 }
 function _2 (args) {
   return args[1];
