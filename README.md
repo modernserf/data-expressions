@@ -34,7 +34,7 @@ Use the value at index `1` in an array. You can also use values from the _end_ o
 dx`.-1`.replace(["foo", "bar", "baz"], 123) // => ["foo", "bar", 123]
 ```
 
-`.foo?`, `.1` , `.${value}?`
+`.foo?`, `.1?` , `.${value}?`
 A key followed by `?` will always succeed. If that key or index is not present in the object, `.test` will still return `true`, `.match` will yield `undefined`, and `.replace` will insert the value to the structure at that key or index:
 
 ```js

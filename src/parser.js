@@ -1,9 +1,9 @@
+import grammar from './grammar.build.js'
+import * as lenses from './lenses.js'
+import * as operations from './operations.js'
 const { Parser, Grammar } = require('nearley')
-const grammar = require('./grammar.build.js')
-const lenses = require('./lenses.js')
-const operations = require('./operations.js')
 
-function parse (strs, items) {
+export function parse (strs, items) {
   const parser = new Parser(Grammar.fromCompiled(grammar))
   for (let i = 0; i < strs.length; i++) {
     parser.feed(strs[i])
@@ -58,7 +58,7 @@ function lensForInterpolation (val) {
   }
 }
 
-function compile (node, items) {
+export function compile (node, items) {
   switch (node.type) {
     case 'Alt':
       return op(lenses.alt, node, items)
@@ -99,7 +99,7 @@ function compile (node, items) {
   }
 }
 
-function dx (strs, ...items) {
+export function dx (strs, ...items) {
   const gen = compile(parse(strs, items), items)
   gen.test = (focus) => operations.test(gen, focus)
   gen.match = (focus) => operations.match(gen, focus)
@@ -107,5 +107,3 @@ function dx (strs, ...items) {
   gen.exec = (focus, fn) => operations.exec(gen, focus, fn)
   return gen
 }
-
-module.exports = { parse, compile, dx }

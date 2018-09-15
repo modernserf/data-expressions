@@ -1,18 +1,14 @@
 const tape = require('tape')
 const {
   test, match, replace, exec,
-  id, key, index, slice, where, value, regex, spread, recursive,
-  collect, project, alt, and, seq, array, object
-} = require('./index')
-const { parse, dx } = require('./parser')
+  id, fail, key, index, slice, regex, spread, recursive,
+  where, value, number,
+  collect, project, alt, and, seq, array, arrayOf, object,
+  parse, dx
+} = require('./index.build.js')
 
-tape('id', (t) => {
-  const [res] = match(id, { foo: 1 })
-  t.deepEquals(res, { foo: 1 },
-    'id.match returns itself')
-  const out = replace(id, { foo: 1 }, { bar: 2 })
-  t.deepEquals(out, { bar: 2 },
-    'id.replace returns the new value')
+tape('fail', (t) => {
+  t.false(test(seq(id, fail), 'foo'))
   t.end()
 })
 
@@ -151,6 +147,7 @@ tape('recursive', (t) => {
     { foo: 1, bar: [2, 'quux'] },
     { foo: 1, bar: [2, { baz: 'quux' }] }
   ], 'recursive.replace returns multiple items')
+  t.comment('TODO: circular structures')
   t.end()
 })
 
@@ -229,12 +226,25 @@ tape('seq', (t) => {
 })
 
 tape('array', (t) => {
-  const lens = array([value('foo'), where((x) => typeof x === 'number')])
+  const lens = array([value('foo'), number])
   const [res] = match(lens, ['foo', 1])
   t.deepEquals(res, ['foo', 1])
   const out = replace(lens, ['foo', 1], ['bar', 10])
   t.deepEquals(out, ['bar', 10])
-  t.comment('TODO: `rest` parameter for matching tails; use slice?')
+  t.end()
+})
+
+tape('array.rest', (t) => {
+  const lens = array([value('foo')], arrayOf(number))
+  const [res] = match(lens, ['foo', 1, 2, 3])
+  t.deepEquals(res, ['foo', 1, 2, 3])
+  t.end()
+})
+
+tape('arrayOf', (t) => {
+  const lens = arrayOf(key('foo'))
+  t.true(test(lens, [{ foo: 1 }, { foo: 2 }]))
+  t.false(test(lens, [{ foo: 1 }, { bar: 2 }]))
   t.end()
 })
 
@@ -280,11 +290,10 @@ tape('parser', (t) => {
   t.deepEquals(p`**.bar`, p.Seq(p.Recursive, p.Key(p.ident('bar'))))
   t.deepEquals(p`.[:2]`, p.Slice(null, p.int(2)))
   t.deepEquals(p`.[1:2]`, p.Slice(p.int(1), p.int(2)))
-  t.deepEquals(p`{x: 1, y?: 2}`,
-    p.Object([
-      p.Entry(p.ident('x'), p.int(1)),
-      p.Entry(p.ident('y'), p.int(2), true)
-    ]))
+  t.deepEquals(p`{x: 1, y?: 2}`, p.Object([
+    p.Entry(p.ident('x'), p.int(1)),
+    p.Entry(p.ident('y'), p.int(2), true)
+  ]))
   t.end()
 })
 

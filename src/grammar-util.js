@@ -1,5 +1,5 @@
 const moo = require('moo')
-const lexer = moo.compile({
+export const lexer = moo.compile({
   int: { match: /-?\d+/, value: (x) => Number(x) },
   ident: /[A-Za-z_$][A-Za-z0-9_$]*/,
   placeholder: { match: /<\d+>/, value: (x) => Number(x.slice(1, -1)) },
@@ -15,8 +15,8 @@ lexer.next = () => {
   return tok
 }
 
-const _ = null
-function tag (type, ...params) {
+export const _ = null
+export function tag (type, ...params) {
   return (args) =>
     args.reduce((coll, arg, i) => {
       if (params[i]) {
@@ -25,12 +25,10 @@ function tag (type, ...params) {
       return coll
     }, { type })
 }
-function _2 (args) {
+export function _2 (args) {
   return args[1]
 }
-function cons ([h, t]) {
+export function cons ([h, t]) {
   return [h, ...t].map(([x]) => x)
 }
-function value ([{ type, value }]) { return { type, value } }
-
-module.exports = { lexer, _, tag, _2, cons, value }
+export function value ([{ type, value }]) { return { type, value } }

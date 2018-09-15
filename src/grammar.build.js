@@ -1,10 +1,8 @@
 // Generated automatically by nearley, version 2.15.1
 // http://github.com/Hardmath123/nearley
-(function () {
 function id(x) { return x[0]; }
- const { lexer, _, tag, _2, cons, value } = require("./grammar-util.js"); var grammar = {
-    Lexer: lexer,
-    ParserRules: [
+ import { lexer, _, tag, _2, cons, value } from "./grammar-util.js"; let Lexer = lexer;
+let ParserRules = [
     {"name": "Expr", "symbols": ["AltExpr"], "postprocess": id},
     {"name": "AltExpr", "symbols": ["AltExpr", {"literal":"|"}, "AndExpr"], "postprocess": tag("Alt", "left", _, "right")},
     {"name": "AltExpr", "symbols": ["AndExpr"], "postprocess": id},
@@ -43,11 +41,13 @@ function id(x) { return x[0]; }
     {"name": "Array$macrocall$1", "symbols": [], "postprocess": () => []},
     {"name": "Array", "symbols": ["Array$macrocall$1"], "postprocess": id},
     {"name": "Rest", "symbols": [{"literal":"..."}, "Expr"], "postprocess": _2},
-    {"name": "Slice$ebnf$1", "symbols": ["Key"], "postprocess": id},
+    {"name": "Slice$ebnf$1", "symbols": ["Int"], "postprocess": id},
     {"name": "Slice$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "Slice$ebnf$2", "symbols": ["Key"], "postprocess": id},
+    {"name": "Slice$ebnf$2", "symbols": ["Int"], "postprocess": id},
     {"name": "Slice$ebnf$2", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "Slice", "symbols": [{"literal":"["}, "Slice$ebnf$1", {"literal":":"}, "Slice$ebnf$2", {"literal":"]"}], "postprocess": tag("Slice", _, "from", _, "to")},
+    {"name": "Int", "symbols": [(lexer.has("int") ? {type: "int"} : int)], "postprocess": value},
+    {"name": "Int", "symbols": [(lexer.has("placeholder") ? {type: "placeholder"} : placeholder)], "postprocess": value},
     {"name": "Key", "symbols": [(lexer.has("dqstring") ? {type: "dqstring"} : dqstring)], "postprocess": value},
     {"name": "Key", "symbols": [(lexer.has("ident") ? {type: "ident"} : ident)], "postprocess": value},
     {"name": "Key", "symbols": [(lexer.has("int") ? {type: "int"} : int)], "postprocess": value},
@@ -55,12 +55,6 @@ function id(x) { return x[0]; }
     {"name": "Opt$ebnf$1", "symbols": [{"literal":"?"}], "postprocess": id},
     {"name": "Opt$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "Opt", "symbols": ["Opt$ebnf$1"], "postprocess": ([str]) => !!str}
-]
-  , ParserStart: "Expr"
-}
-if (typeof module !== 'undefined'&& typeof module.exports !== 'undefined') {
-   module.exports = grammar;
-} else {
-   window.grammar = grammar;
-}
-})();
+];
+let ParserStart = "Expr";
+export default { Lexer, ParserRules, ParserStart };

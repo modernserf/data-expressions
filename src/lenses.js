@@ -1,13 +1,19 @@
-const { test } = require('./operations.js')
+import { test, match, replace } from './operations.js'
 
-function * id (focus) {
+export function * id (focus) {
   yield { match: focus, replace: (value) => value }
 }
+export function test_id (t) {
+  const [res] = match(id, { foo: 1 })
+  t.deepEquals(res, { foo: 1 },
+    'id.match returns itself')
+  const out = replace(id, { foo: 1 }, { bar: 2 })
+  t.deepEquals(out, { bar: 2 },
+    'id.replace returns the new value')
+  t.end()
+}
 
-function * fail () {}
-
-// TODO:
-// proptypes
+export function * fail () {}
 
 function hasKey (focus, key) {
   if (!focus || typeof focus !== 'object') { return false }
@@ -15,7 +21,7 @@ function hasKey (focus, key) {
 }
 
 // `.foo` |`.${string}`
-const key = (key) => function * (focus) {
+export const key = (key) => function * (focus) {
   if (hasKey(focus, key)) {
     yield {
       match: focus[key],
@@ -31,7 +37,7 @@ key.optional = (key) => function * (focus) {
 }
 
 // `.0` | `.${number}`
-const index = (i) => function * (focus) {
+export const index = (i) => function * (focus) {
   // allow indexing from end
   if (i < 0) { i = focus.length + i }
 
@@ -59,7 +65,7 @@ index.optional = (i) => function * (focus) {
   }
 }
 
-const slice = (start, end) => function * (focus) {
+export const slice = (start, end) => function * (focus) {
   yield {
     match: focus.slice(start, end),
     replace: (value) => [
@@ -70,24 +76,23 @@ const slice = (start, end) => function * (focus) {
   }
 }
 
-const where = (fn) => function * (focus) {
+export const where = (fn) => function * (focus) {
   if (fn(focus)) {
     yield { match: focus, replace: (value) => value }
   }
 }
 
-const value = (val) => where((x) => x === val)
-// eslint-disable-next-line valid-typeof
-const typeOf = (t) => where((x) => typeof x === t)
-const instanceOf = (Type) => where((x) => x instanceof Type)
-const number = typeOf('number')
-const string = typeOf('string')
-const bool = typeOf('boolean')
-const func = typeOf('function')
-const symbol = typeOf('symbol')
-const date = where((x) => typeof x.getTime === 'function')
+export const value = (val) => where((x) => x === val)
+export const typeOf = (t) => where((x) => typeof x === t) // eslint-disable-line valid-typeof
+export const instanceOf = (Type) => where((x) => x instanceof Type)
+export const number = typeOf('number')
+export const string = typeOf('string')
+export const bool = typeOf('boolean')
+export const func = typeOf('function')
+export const symbol = typeOf('symbol')
+export const date = where((x) => typeof x.getTime === 'function')
 
-const regex = (re) => function * (focus) {
+export const regex = (re) => function * (focus) {
   // "fresh" regex on every invocation
   re = new RegExp(re)
   let match = re.exec(focus)
@@ -99,8 +104,7 @@ const regex = (re) => function * (focus) {
 
   // handle stateful regexes
   if (re.global || re.sticky) {
-    // eslint-disable-next-line no-cond-assign
-    while (match = re.exec(focus)) {
+    while (match = re.exec(focus)) { // eslint-disable-line no-cond-assign
       let lastIndex = match.lastIndex
       yield {
         match: match[0],
@@ -117,7 +121,7 @@ const regex = (re) => function * (focus) {
 }
 
 // `*`
-function * spread (focus) {
+export function * spread (focus) {
   for (const [lens] of lensesForStructure(focus)) {
     yield * lens(focus)
   }
@@ -142,7 +146,7 @@ function * _recursive (focus, maxVisits) {
   }
 }
 
-const recursive = (focus) => _recursive(focus, 1)
+export const recursive = (focus) => _recursive(focus, 1)
 recursive.maxVisits = (maxVisits) =>
   (focus) => _recursive(focus, maxVisits)
 
@@ -152,7 +156,7 @@ function defaultReducer (l = { match: [], replace: () => [] }, r) {
     replace: (value) => l.replace(value).concat([r.replace(value)])
   }
 }
-const collect = (x, reducer = defaultReducer) => function * (focus) {
+export const collect = (x, reducer = defaultReducer) => function * (focus) {
   let collected
   for (const lens of x(focus)) {
     collected = reducer(collected, lens)
@@ -160,7 +164,7 @@ const collect = (x, reducer = defaultReducer) => function * (focus) {
   yield collected
 }
 
-const project = (fn) => function * (focus) {
+export const project = (fn) => function * (focus) {
   yield {
     match: fn(focus),
     replace: (value) => value
@@ -168,20 +172,20 @@ const project = (fn) => function * (focus) {
 }
 
 // `${x} | ${y}`
-const alt = (x, y) => function * (focus) {
+export const alt = (x, y) => function * (focus) {
   yield * x(focus)
   yield * y(focus)
 }
 
 // `${x} & ${y}`
-const and = (x, y) => function * (focus) {
+export const and = (x, y) => function * (focus) {
   for (const _ of x(focus)) {
     yield * y(focus)
   }
 }
 
 // `${x} ${y}`
-const seq = (x, y) => function * (focus) {
+export const seq = (x, y) => function * (focus) {
   for (const outer of x(focus)) {
     for (const inner of y(outer.match)) {
       yield {
@@ -196,11 +200,6 @@ const seq = (x, y) => function * (focus) {
 function * objectInit (focus) {
   yield { match: {}, replace: () => focus }
 }
-
-function * arrayInit () {
-  yield { match: [], replace: () => [] }
-}
-
 const entryReducer = (acc, [key, lens, optional = false]) => function * (focus) {
   if (!hasKey(focus, key) && !optional) { return }
 
@@ -220,14 +219,16 @@ const entryReducer = (acc, [key, lens, optional = false]) => function * (focus) 
   }
 }
 
-const object = (entries) => function * (focus) {
+export const object = (entries) => function * (focus) {
   if (!Array.isArray(entries)) { entries = Object.entries(entries) }
   yield * entries.reduce(entryReducer, objectInit)(focus)
 }
 
-const arrayReducer = (acc, lens, index) => function * (focus) {
-  if (index >= focus.length) { return }
+function * arrayInit () {
+  yield { match: [], replace: () => [] }
+}
 
+const arrayReducer = (acc, lens, index) => function * (focus) {
   for (const base of acc(focus)) {
     for (const inner of lens(focus[index])) {
       yield {
@@ -239,12 +240,27 @@ const arrayReducer = (acc, lens, index) => function * (focus) {
   }
 }
 
-const array = (array) => function * (focus) {
-  if (array.length !== focus.length) { return }
-  yield * array.reduce(arrayReducer, arrayInit)(focus)
+export const array = (array, rest) => function * (focus) {
+  if (array.length > focus.length) { return }
+  if ((array.length < focus.length) && !rest) { return }
+
+  const head = array.reduce(arrayReducer, arrayInit)
+  if (rest) {
+    for (const h of head(focus)) {
+      for (const r of rest(focus.slice(array.length))) {
+        yield {
+          match: h.match.concat(r.match),
+          replace: (value) => h.replace(value)
+            .concat(r.replace(value.slice(array.length)))
+        }
+      }
+    }
+  } else {
+    yield * head(focus)
+  }
 }
 
-const arrayOf = (lens) => function * (focus) {
+export const arrayOf = (lens) => function * (focus) {
   for (const item of focus) {
     if (!test(lens, item)) { return }
   }
@@ -261,33 +277,4 @@ function lensesForStructure (value) {
   } else {
     return []
   }
-}
-
-module.exports = {
-  id,
-  fail,
-  key,
-  index,
-  slice,
-  where,
-  value,
-  regex,
-  spread,
-  recursive,
-  collect,
-  project,
-  and,
-  alt,
-  seq,
-  object,
-  array,
-  arrayOf,
-  typeOf,
-  instanceOf,
-  number,
-  string,
-  func,
-  bool,
-  symbol,
-  date
 }

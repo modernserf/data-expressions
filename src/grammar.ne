@@ -1,5 +1,6 @@
-@{% const { lexer, _, tag, _2, cons, value } = require("./grammar-util.js"); %}
+@{% import { lexer, _, tag, _2, cons, value } from "./grammar-util.js"; %}
 @lexer lexer
+@preprocessor esmodule
 
 sep[ITEM, SEP] -> $ITEM ($SEP $ITEM {% _2 %}):* {% cons %}
                |  null                          {% () => [] %}
@@ -31,8 +32,10 @@ Entry    -> Key Opt ":" Expr      {% tag("Entry", "key", "optional", _, "value")
 Array    -> sep[Expr, ","]        {% id %}
 Rest     -> "..." Expr            {% _2 %}
 
-Slice -> "[" Key:? ":" Key:? "]"  {% tag("Slice", _, "from", _, "to") %}
+Slice -> "[" Int:? ":" Int:? "]"  {% tag("Slice", _, "from", _, "to") %}
 
+Int   -> %int                     {% value %}
+      |  %placeholder             {% value %}
 Key   -> %dqstring                {% value %}
       |  %ident                   {% value %}
       |  %int                     {% value %}

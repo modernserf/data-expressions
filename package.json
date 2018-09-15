@@ -1,18 +1,23 @@
 {
-  "name": "data-expressions",
+  "name": "@modernserf/data-expressions",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "lint": "eslint .",
-    "test": "tape test.js | faucet",
-    "build-parser": "nearleyc grammar.ne -o grammar.build.js",
-    "watch": "watch 'npm test'",
-    "coverage": "nyc npm test"
+    "test": "npm run build:test && tape src/test.build.js | faucet",
+    "test:docs": "npm run build:docs && open 'http://localhost:8080/' && http-server ./docs",
+    "build:docs": "docco src/*.js",
+    "build:module": "rollup src/index.js -o module.build.js -f esm",
+    "build:cjs": "rollup src/index.js -o index.build.js -f cjs",
+    "build:test": "rollup src/test.js -o src/test.build.js -f cjs",
+    "build:parser": "nearleyc src/grammar.ne -o src/grammar.build.js",
+    "watch": "watch 'npm test'"
   },
   "author": "Justin Falcone <justin@justinfalcone.com>",
   "license": "ISC",
   "devDependencies": {
+    "docco": "^0.7.0",
     "eslint": "^5.5.0",
     "eslint-config-standard": "^12.0.0",
     "eslint-plugin-import": "^2.14.0",
@@ -20,6 +25,8 @@
     "eslint-plugin-promise": "^4.0.1",
     "eslint-plugin-standard": "^4.0.0",
     "faucet": "0.0.1",
+    "http-server": "^0.11.1",
+    "rollup": "^0.65.2",
     "tape": "^4.9.1",
     "watch": "^1.0.2"
   },
