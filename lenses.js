@@ -4,6 +4,8 @@ function * id (focus) {
   yield { match: focus, replace: (value) => value }
 }
 
+function * fail () {}
+
 // TODO:
 // proptypes
 
@@ -263,6 +265,7 @@ function lensesForStructure (value) {
 
 module.exports = {
   id,
+  fail,
   key,
   index,
   slice,
