@@ -10,6 +10,7 @@ function parse (strs, items) {
   }
   const { results } = parser
   if (results.length !== 1) {
+    console.error(results)
     throw new Error('Parsing failed')
   }
   return results[0]

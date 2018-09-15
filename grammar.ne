@@ -3,38 +3,37 @@
 sep[ITEM, SEP] -> $ITEM ($SEP $ITEM {% _2 %}):* {% cons %}
                |  null                          {% () => [] %}
 
-Program -> _ Expr _ {% _2 %}
 Expr    -> AltExpr  {% id %}
 
 # operators
-AltExpr  -> AltExpr (_ "|" _) AndExpr     {% op("Alt") %}
-         |  AndExpr                       {% id %}
-AndExpr  -> AndExpr (_ "&" _) CompExpr    {% op("And") %}
-         |  CompExpr                      {% id %}
-CompExpr -> CompExpr _ BaseExpr           {% op("Comp") %}
-         |  BaseExpr                      {% id %}
+AltExpr  -> AltExpr "|" AndExpr     {% op("Alt") %}
+         |  AndExpr                 {% id %}
+AndExpr  -> AndExpr "&" CompExpr    {% op("And") %}
+         |  CompExpr                {% id %}
+CompExpr -> CompExpr _ BaseExpr     {% op("Comp") %}
+         |  BaseExpr                {% id %}
 
-BaseExpr -> ("(" _) Expr _ ")"            {% _2 %}
-         |  ("{" _) ObjectEntries _ "}"   {% tag("Object", null, "value") %}
-         |  ("[" _) ArrayEntries _ "]"    {% tag("Array", null, "value") %}
-         |  "." Key Opt                   {% tag("Key", null, "value", "optional") %}
-         |  %spread                       {% tag("Spread") %}
-         |  %recursive                    {% tag("Recursive") %}
-         |  %placeholder                  {% value %}
-         |  %dqstring                     {% value %}
-         |  %int                          {% value %}
+BaseExpr -> "(" Expr ")"            {% _2 %}
+         |  "{" ObjectEntries "}"   {% tag("Object", null, "value") %}
+         |  "[" ArrayEntries "]"    {% tag("Array", null, "value") %}
+         |  "." Key Opt             {% tag("Key", null, "value", "optional") %}
+         |  %spread                 {% tag("Spread") %}
+         |  %recursive              {% tag("Recursive") %}
+         |  %placeholder            {% value %}
+         |  %dqstring               {% value %}
+         |  %int                    {% value %}
 
-ObjectEntries -> sep[Entry , (_ "," _)]   {% id %}
-Entry         -> Key (_ ":" _) Expr       {% tag("Entry", "key", null, "value") %}
-ArrayEntries  -> sep[Expr, (_ "," _)]     {% id %}
+ObjectEntries -> sep[Entry, ","]    {% id %}
+Entry         -> Key ":" Expr       {% tag("Entry", "key", null, "value") %}
+ArrayEntries  -> sep[Expr, ","]     {% id %}
 
-Key   -> %dqstring                        {% value %}
-      |  %ident                           {% value %}
-      |  %int                             {% value %}
-      |  %placeholder                     {% value %}
-Opt   -> (_ "?"):?                        {% ([str]) => !!str %}
+Key   -> %dqstring                  {% value %}
+      |  %ident                     {% value %}
+      |  %int                       {% value %}
+      |  %placeholder               {% value %}
+Opt   -> "?":?                      {% ([str]) => !!str %}
 
-_  -> %ws:?
+_  -> null
 
 @{%
 const moo = require("moo");
@@ -46,8 +45,15 @@ const lexer = moo.compile({
   dqstring: { match: /"(?:\\"|[^"\n])+"/, value: (x) => x.slice(1, -1) },
   recursive: /\*\*/,
   spread: /\*/,
-  op: /[|&(){}[\].,?:]/
+  op: /[|&(){}[\].,:?]/
 })
+
+const next = lexer.next.bind(lexer)
+lexer.next = () => {
+    let tok
+    while ((tok = next()) && tok.type === 'ws') {}
+    return tok
+}
 
 function tag (type, ...params) {
   return (args) =>

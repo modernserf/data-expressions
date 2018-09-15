@@ -275,5 +275,7 @@ tape('template string', (t) => {
   t.deepEquals(res3, 3)
   const [res4] = match(dx`.foo .0`, { foo: ['bar', 'baz'] })
   t.deepEquals(res4, 'bar')
+  const [res5] = match(dx`.foo.0`, { foo: ['bar', 'baz'] })
+  t.deepEquals(res5, 'bar')
   t.end()
 })
