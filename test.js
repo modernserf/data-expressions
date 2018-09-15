@@ -252,6 +252,20 @@ tape('object', (t) => {
   t.end()
 })
 
+p.Key = (value, optional = false) => ({ type: 'Key', value, optional })
+p.ident = (value) => ({ type: 'ident', value })
+p.placeholder = (value) => ({ type: 'placeholder', value })
+p.int = (value) => ({ type: 'int', value })
+p.dqstring = (value) => ({ type: 'dqstring', value })
+
+tape('parser.key', (t) => {
+  t.deepEquals(p`.foo`, p.Key(p.ident('foo')))
+  t.deepEquals(p`.${123}?`, p.Key(p.placeholder(0), true))
+  t.deepEquals(p`.1`, p.Key(p.int(1)))
+  t.deepEquals(p`."foo bar"?`, p.Key(p.dqstring('foo bar'), true))
+  t.end()
+})
+
 tape('template string', (t) => {
   const [res] = match(dx`.foo`, { foo: 1 })
   t.deepEquals(res, 1)
@@ -261,15 +275,5 @@ tape('template string', (t) => {
   t.deepEquals(res3, 3)
   const [res4] = match(dx`.foo .0`, { foo: ['bar', 'baz'] })
   t.deepEquals(res4, 'bar')
-  t.end()
-})
-
-tape('parser', (t) => {
-  const ast = p`.foo`
-  t.deepEquals(ast, { type: 'Key', value: { type: 'ident', value: 'foo' }, optional: false })
-  const ast2 = p`.${123}?`
-  t.deepEquals(ast2, { type: 'Key', value: { type: 'placeholder', value: 0 }, optional: true })
-  const ast3 = p`.1`
-  t.deepEquals(ast3, { type: 'Key', value: { type: 'int', value: 1 }, optional: false })
   t.end()
 })

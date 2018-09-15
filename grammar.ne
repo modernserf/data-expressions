@@ -35,7 +35,6 @@ Key   -> %dqstring                        {% value %}
 Opt   -> (_ "?"):?                        {% ([str]) => !!str %}
 
 _  -> %ws:?
-__ -> %ws
 
 @{%
 const moo = require("moo");
@@ -44,10 +43,10 @@ const lexer = moo.compile({
   int: { match: /-?\d+/, value: (x) => Number(x) },
   ident: /[A-Za-z_$][A-Za-z0-9_$]*/,
   placeholder: { match: /<\d+>/, value: (x) => Number(x.slice(1, -1)) },
-  dqstring: { match: /"[^"\n]|(?:\\")"/, value: (x) => x.slice(1, -1) },
+  dqstring: { match: /"(?:\\"|[^"\n])+"/, value: (x) => x.slice(1, -1) },
   recursive: /\*\*/,
   spread: /\*/,
-  op: /[|&(){}[\].,?:]+/
+  op: /[|&(){}[\].,?:]/
 })
 
 function tag (type, ...params) {

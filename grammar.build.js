@@ -9,10 +9,10 @@ const lexer = moo.compile({
   int: { match: /-?\d+/, value: (x) => Number(x) },
   ident: /[A-Za-z_$][A-Za-z0-9_$]*/,
   placeholder: { match: /<\d+>/, value: (x) => Number(x.slice(1, -1)) },
-  dqstring: { match: /"[^"\n]|(?:\\")"/, value: (x) => x.slice(1, -1) },
+  dqstring: { match: /"(?:\\"|[^"\n])+"/, value: (x) => x.slice(1, -1) },
   recursive: /\*\*/,
   spread: /\*/,
-  op: /[|&(){}[\].,?:]+/
+  op: /[|&(){}[\].,?:]/
 })
 
 function tag (type, ...params) {
@@ -93,8 +93,7 @@ var grammar = {
     {"name": "Opt", "symbols": ["Opt$ebnf$1"], "postprocess": ([str]) => !!str},
     {"name": "_$ebnf$1", "symbols": [(lexer.has("ws") ? {type: "ws"} : ws)], "postprocess": id},
     {"name": "_$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "_", "symbols": ["_$ebnf$1"]},
-    {"name": "__", "symbols": [(lexer.has("ws") ? {type: "ws"} : ws)]}
+    {"name": "_", "symbols": ["_$ebnf$1"]}
 ]
   , ParserStart: "Program"
 }
