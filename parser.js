@@ -4,17 +4,71 @@ const lenses = require('./lenses.js')
 
 function parse (strs, items) {
   const parser = new Parser(Grammar.fromCompiled(grammar))
-  for (i = 0; i < strs.length; i++) {
+  for (let i = 0; i < strs.length; i++) {
     parser.feed(strs[i])
     if (items[i]) { parser.feed(`<${i}>`) }
   }
   const { results } = parser
-  if (results.length !== 1) { throw new Error('Parsing failed') }
+  if (results.length !== 1) {
+    throw new Error('Parsing failed')
+  }
   return results[0]
 }
 
-function compile (ast, items) {
-  switch (ast.type) {
+function getKeyString (node, items) {
+  switch (node.type) {
+    case 'dqstring':
+    case 'ident':
+    case 'int':
+      return node.value
+    case 'placeholder':
+      const pvalue = items[node.value]
+      if (['string', 'number'].includes(typeof pvalue)) {
+        return pvalue
+      }
+  }
+  throw new Error('Invalid key type')
+}
+
+const mapEntries = (node, items) => {
+  return node.reduce((m, { type, key, value }) => {
+    if (type !== 'Entry') { throw new Error('Expected Entry Node') }
+    m[getKeyString(key, items)] = compile(value, items)
+    return m
+  }, {})
+}
+
+const op = (lens, node, items) =>
+  lens(compile(node.left, items), compile(node.right, items))
+
+const opt = (lens, optional) => optional ? lens.optional : lens
+
+function compile (node, items) {
+  switch (node.type) {
+    case 'Alt':
+      return op(lenses.alt, node, items)
+    case 'And':
+      return op(lenses.and, node, items)
+    case 'Comp':
+      return op(lenses.pipe, node, items)
+    case 'Object':
+      return lenses.object(mapEntries(node, items))
+    case 'Array':
+      return lenses.array(node.values.map((n) => compile(n, items)))
+    case 'Key':
+      let key = getKeyString(node.value, items)
+      if (typeof key === 'string') {
+        return opt(lenses.key)(key)
+      } else {
+        return opt(lenses.index)(key)
+      }
+    case 'Spread':
+      return lenses.spread
+    case 'Recursive':
+      return lenses.recursive
+    // TODO: handle non-generator values
+    case 'placeholder':
+      return items[node.value]
     default:
       throw new Error('Unknown AST Node')
   }

@@ -1,10 +1,9 @@
 const tape = require('tape')
 const {
   test, match, replace, exec,
-  id, key, index, where, spread, recursive, collect, alt, pipe, object,
-  dx
+  id, key, index, where, spread, recursive, collect, alt, pipe, object
 } = require('./index')
-const { parse } = require('./parser')
+const { parse, dx } = require('./parser')
 const p = (strs, ...items) => parse(strs, items)
 
 tape('id', (t) => {
@@ -194,11 +193,17 @@ tape('template string', (t) => {
   t.deepEquals(res2, [1, 2])
   const [res3] = match(dx`.foo .bar`, { foo: { bar: 3 } })
   t.deepEquals(res3, 3)
+  const [res4] = match(dx`.foo .0`, { foo: ['bar', 'baz'] })
+  t.deepEquals(res4, 'bar')
   t.end()
 })
 
 tape('parser', (t) => {
   const ast = p`.foo`
-  t.deepEquals(ast, { type: 'Key', value: 'foo', optional: false })
+  t.deepEquals(ast, { type: 'Key', value: { type: 'ident', value: 'foo' }, optional: false })
+  const ast2 = p`.${123}?`
+  t.deepEquals(ast2, { type: 'Key', value: { type: 'placeholder', value: 0 }, optional: true })
+  const ast3 = p`.1`
+  t.deepEquals(ast3, { type: 'Key', value: { type: 'int', value: 1 }, optional: false })
   t.end()
 })

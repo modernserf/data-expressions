@@ -2,8 +2,6 @@ function * id (focus) {
   yield { match: focus, replace: (value) => value }
 }
 
-const optional = (gen) => gen.optional
-
 // TODO:
 // slices: `[start:end]`
 // spread / collect (match only)
@@ -49,6 +47,8 @@ const where = (fn) => function * (focus) {
     yield { match: focus, replace: (value) => value }
   }
 }
+
+const value = (val) => where((x) => x === val)
 
 function * spread (focus) {
   for (const [lens] of lensesForStructure(focus)) {
@@ -116,8 +116,12 @@ const pipe = (x, y) => function * (focus) {
 }
 
 // `{foo: ${x}, bar: ${y} ...}`
-function * entryInit (focus) {
+function * objectInit (focus) {
   yield { match: {}, replace: () => focus }
+}
+
+function * arrayInit (focus) {
+  yield { match: [], replace: () => focus }
 }
 
 const entryReducer = (acc, [key, lens]) => function * (focus) {
@@ -141,7 +145,25 @@ const entryReducer = (acc, [key, lens]) => function * (focus) {
 
 const object = (object) => function * (focus) {
   const entries = Object.entries(object)
-  yield * entries.reduce(entryReducer, entryInit)(focus)
+  yield * entries.reduce(entryReducer, objectInit)(focus)
+}
+
+const arrayReducer = (acc, lens, index) => function * (focus) {
+  if (index >= focus.length) { return }
+
+  for (const base of acc(focus)) {
+    for (const inner of lens(focus[index])) {
+      yield {
+        match: base.match.concat([inner.match]),
+        replace: (value) => base.replace(value)
+          .concat([inner.replace(value[index])])
+      }
+    }
+  }
+}
+
+const array = (array) => function * (focus) {
+  yield * array.reduce(arrayReducer, arrayInit)(focus)
 }
 
 function lensesForStructure (value) {
@@ -161,6 +183,7 @@ module.exports = {
   key,
   index,
   where,
+  value,
   spread,
   recursive,
   collect,
@@ -168,5 +191,6 @@ module.exports = {
   and,
   alt,
   pipe,
-  object
+  object,
+  array
 }

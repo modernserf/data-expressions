@@ -6,10 +6,10 @@ function id(x) { return x[0]; }
 const moo = require("moo");
 const lexer = moo.compile({
   ws: { match: /[ \t\n]+/, lineBreaks: true },
-  int: { match: /-?\d+/, transform: (x) => Number(x) },
+  int: { match: /-?\d+/, value: (x) => Number(x) },
   ident: /[A-Za-z_$][A-Za-z0-9_$]*/,
-  placeholder: { match: /<\d+>/, transform: (x) => Number(x.slice(1, -1)) },
-  dqstring: { match: /"[^"\n]|(?:\\")"/, transform: (x) => x.slice(1, -1) },
+  placeholder: { match: /<\d+>/, value: (x) => Number(x.slice(1, -1)) },
+  dqstring: { match: /"[^"\n]|(?:\\")"/, value: (x) => x.slice(1, -1) },
   op: /[|&(){}[\].*,?:]+/
 })
 
@@ -35,7 +35,7 @@ function join (args) {
 function cons ([h, t]) {
   return [h, ...t].map(id);
 }
-function value (x) { return x[0].value; }
+function value ([{ type, value }]) { return { type, value } }
 var grammar = {
     Lexer: lexer,
     ParserRules: [
@@ -56,11 +56,9 @@ var grammar = {
     {"name": "BaseExpr$subexpression$3", "symbols": [{"literal":"["}, "_"]},
     {"name": "BaseExpr", "symbols": ["BaseExpr$subexpression$3", "ArrayEntries", "_", {"literal":"]"}], "postprocess": tag("Array", null, "value")},
     {"name": "BaseExpr", "symbols": [{"literal":"."}, "Key", "Opt"], "postprocess": tag("Key", null, "value", "optional")},
-    {"name": "BaseExpr", "symbols": [{"literal":"."}, "Int", "Opt"], "postprocess": tag("Index", null, "value", "optional")},
     {"name": "BaseExpr", "symbols": [{"literal":"..."}], "postprocess": tag("Spread")},
     {"name": "BaseExpr", "symbols": [{"literal":"*"}], "postprocess": tag("Recursive")},
-    {"name": "BaseExpr$subexpression$4", "symbols": [(lexer.has("placeholder") ? {type: "placeholder"} : placeholder)], "postprocess": value},
-    {"name": "BaseExpr", "symbols": ["BaseExpr$subexpression$4"], "postprocess": tag("Placeholder", "index")},
+    {"name": "BaseExpr", "symbols": [(lexer.has("placeholder") ? {type: "placeholder"} : placeholder)], "postprocess": value},
     {"name": "ObjectEntries$macrocall$2", "symbols": ["Entry"]},
     {"name": "ObjectEntries$macrocall$3$subexpression$1", "symbols": ["_", {"literal":","}, "_"]},
     {"name": "ObjectEntries$macrocall$3", "symbols": ["ObjectEntries$macrocall$3$subexpression$1"]},
@@ -81,9 +79,9 @@ var grammar = {
     {"name": "ArrayEntries$macrocall$1", "symbols": ["ArrayEntries$macrocall$2", "ArrayEntries$macrocall$1$ebnf$1"], "postprocess": cons},
     {"name": "ArrayEntries$macrocall$1", "symbols": [], "postprocess": () => []},
     {"name": "ArrayEntries", "symbols": ["ArrayEntries$macrocall$1"], "postprocess": id},
-    {"name": "Int", "symbols": [(lexer.has("int") ? {type: "int"} : int)], "postprocess": value},
     {"name": "Key", "symbols": [(lexer.has("dqstring") ? {type: "dqstring"} : dqstring)], "postprocess": value},
     {"name": "Key", "symbols": [(lexer.has("ident") ? {type: "ident"} : ident)], "postprocess": value},
+    {"name": "Key", "symbols": [(lexer.has("int") ? {type: "int"} : int)], "postprocess": value},
     {"name": "Key", "symbols": [(lexer.has("placeholder") ? {type: "placeholder"} : placeholder)], "postprocess": value},
     {"name": "Opt$ebnf$1$subexpression$1", "symbols": ["_", {"literal":"?"}]},
     {"name": "Opt$ebnf$1", "symbols": ["Opt$ebnf$1$subexpression$1"], "postprocess": id},
