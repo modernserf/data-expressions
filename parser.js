@@ -1,6 +1,7 @@
 const { Parser, Grammar } = require('nearley')
 const grammar = require('./grammar.build.js')
 const lenses = require('./lenses.js')
+const operations = require('./operations.js')
 
 function parse (strs, items) {
   const parser = new Parser(Grammar.fromCompiled(grammar))
@@ -16,7 +17,7 @@ function parse (strs, items) {
   return results[0]
 }
 
-function getKeyString (node, items) {
+function getKeyVal (node, items) {
   switch (node.type) {
     case 'dqstring':
     case 'ident':
@@ -32,11 +33,10 @@ function getKeyString (node, items) {
 }
 
 const mapEntries = (node, items) => {
-  return node.reduce((m, { type, key, value }) => {
+  return node.map(({ type, key, value, optional }) => {
     if (type !== 'Entry') { throw new Error('Expected Entry Node') }
-    m[getKeyString(key, items)] = compile(value, items)
-    return m
-  }, {})
+    return [getKeyVal(key, items), compile(value, items), optional]
+  })
 }
 
 const op = (lens, node, items) =>
@@ -70,17 +70,25 @@ function compile (node, items) {
       return lenses.object(mapEntries(node, items))
     case 'Array':
       return lenses.array(node.values.map((n) => compile(n, items)))
-    case 'Key':
-      let key = getKeyString(node.value, items)
+    case 'Key': {
+      let key = getKeyVal(node.value, items)
       if (typeof key === 'string') {
         return opt(lenses.key)(key)
       } else {
         return opt(lenses.index)(key)
       }
+    }
+    case 'Slice': {
+      let from = node.from ? getKeyVal(node.from) : undefined
+      let to = node.to ? getKeyVal(node.to) : undefined
+      return lenses.slice(from, to)
+    }
     case 'Spread':
       return lenses.spread
     case 'Recursive':
       return lenses.recursive
+    case 'ID':
+      return lenses.id
     case 'dqstring':
     case 'int':
       return lenses.value(node.value)
@@ -92,7 +100,12 @@ function compile (node, items) {
 }
 
 function dx (strs, ...items) {
-  return compile(parse(strs, items), items)
+  const gen = compile(parse(strs, items), items)
+  gen.test = (focus) => operations.test(gen, focus)
+  gen.match = (focus) => operations.match(gen, focus)
+  gen.replace = (focus, value) => operations.replace(gen, focus, value)
+  gen.exec = (focus, fn) => operations.exec(gen, focus, fn)
+  return gen
 }
 
 module.exports = { parse, compile, dx }

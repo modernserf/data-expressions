@@ -112,16 +112,26 @@ function * spread (focus) {
 
 // `**`
 // TODO: how should `replace` work on a circular structure?
-function * recursive (focus) {
+function * _recursive (focus, maxVisits) {
+  const visited = new Map()
   const q = [[id, focus]]
-  for (const [lens, value] of q) {
+  for (const [lens, node] of q) {
+    // prevent infinite recursion
+    const visitCount = visited.get(node) || 0
+    if (visitCount >= maxVisits) { continue }
+    visited.set(node, visitCount + 1)
+
     yield * lens(focus)
     // yes, you can modify an array while you're iterating over it
-    for (const [childLens, childValue] of lensesForStructure(value)) {
-      q.push([seq(lens, childLens), childValue])
+    for (const [childLens, childNode] of lensesForStructure(node)) {
+      q.push([seq(lens, childLens), childNode])
     }
   }
 }
+
+const recursive = (focus) => _recursive(focus, 1)
+recursive.maxVisits = (maxVisits) =>
+  (focus) => _recursive(focus, maxVisits)
 
 function defaultReducer (l = { match: [], replace: () => [] }, r) {
   return {
@@ -178,8 +188,8 @@ function * arrayInit () {
   yield { match: [], replace: () => [] }
 }
 
-const entryReducer = (acc, [key, lens]) => function * (focus) {
-  if (!hasKey(focus, key)) { return }
+const entryReducer = (acc, [key, lens, optional = false]) => function * (focus) {
+  if (!hasKey(focus, key) && !optional) { return }
 
   for (const base of acc(focus)) {
     for (const inner of lens(focus[key])) {
@@ -197,8 +207,8 @@ const entryReducer = (acc, [key, lens]) => function * (focus) {
   }
 }
 
-const object = (object) => function * (focus) {
-  const entries = Object.entries(object)
+const object = (entries) => function * (focus) {
+  if (!Array.isArray(entries)) { entries = Object.entries(entries) }
   yield * entries.reduce(entryReducer, objectInit)(focus)
 }
 

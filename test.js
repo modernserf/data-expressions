@@ -261,6 +261,9 @@ p.Spread = { type: 'Spread' }
 p.Recursive = { type: 'Recursive' }
 p.Array = (...value) => ({ type: 'Array', value })
 p.Seq = (left, right) => ({ type: 'Seq', left, right })
+p.Slice = (from, to) => ({ type: 'Slice', from, to })
+p.Entry = (key, value, optional = false) => ({ type: 'Entry', key, value, optional })
+p.Object = (...value) => ({ type: 'Object', value })
 
 tape('parser', (t) => {
   t.deepEquals(p`.foo`, p.Key(p.ident('foo')))
@@ -274,6 +277,13 @@ tape('parser', (t) => {
   t.deepEquals(p`[.foo ]`, p.Array(p.Key(p.ident('foo'))))
   t.deepEquals(p`.foo*`, p.Seq(p.Key(p.ident('foo')), p.Spread))
   t.deepEquals(p`**.bar`, p.Seq(p.Recursive, p.Key(p.ident('bar'))))
+  t.deepEquals(p`.[:2]`, p.Slice(null, p.int(2)))
+  t.deepEquals(p`.[1:2]`, p.Slice(p.int(1), p.int(2)))
+  t.deepEquals(p`{x: 1, y?: 2}`,
+    p.Object(
+      p.Entry(p.ident('x'), p.int(1)),
+      p.Entry(p.ident('y'), p.int(2), true)
+    ))
   t.end()
 })
 

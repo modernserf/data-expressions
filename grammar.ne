@@ -17,15 +17,19 @@ BaseExpr -> "(" Expr ")"          {% _2 %}
          |  "{" ObjectEntries "}" {% tag("Object", _, "value") %}
          |  "[" ArrayEntries "]"  {% tag("Array", _, "value") %}
          |  "." Key Opt           {% tag("Key", _, "value", "optional") %}
+         |  "." Slice             {% _2 %}
          |  "*"                   {% tag("Spread") %}
          |  "**"                  {% tag("Recursive") %}
+         |  "_"                   {% tag("ID") %}
          |  %placeholder          {% value %}
          |  %dqstring             {% value %}
          |  %int                  {% value %}
 
 ObjectEntries -> sep[Entry, ","]  {% id %}
-Entry         -> Key ":" Expr     {% tag("Entry", "key", _, "value") %}
+Entry         -> Key Opt ":" Expr {% tag("Entry", "key", "optional", _, "value") %}
 ArrayEntries  -> sep[Expr, ","]   {% id %}
+
+Slice -> "[" Key:? ":" Key:? "]"  {% tag("Slice", _, "from", _, "to") %}
 
 Key   -> %dqstring                {% value %}
       |  %ident                   {% value %}
@@ -40,7 +44,7 @@ const lexer = moo.compile({
   ident: /[A-Za-z_$][A-Za-z0-9_$]*/,
   placeholder: { match: /<\d+>/, value: (x) => Number(x.slice(1, -1)) },
   dqstring: { match: /"(?:\\"|[^"\n])+"/, value: (x) => x.slice(1, -1) },
-  op: /[|&(){}[\].,:?]|\*+/,
+  op: /[|&(){}[\].,:?_]|\*+/,
   ws: { match: /[ \t\n]+/, lineBreaks: true },
 })
 
