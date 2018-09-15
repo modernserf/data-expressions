@@ -3,14 +3,14 @@
 sep[ITEM, SEP] -> $ITEM ($SEP $ITEM {% _2 %}):* {% cons %}
                |  null                          {% () => [] %}
 
-Expr    -> AltExpr  {% id %}
+Expr     -> AltExpr  {% id %}
 
 # operators
 AltExpr  -> AltExpr "|" AndExpr   {% tag("Alt", "left", _, "right") %}
          |  AndExpr               {% id %}
-AndExpr  -> AndExpr "&" CompExpr  {% tag("And", "left", _, "right") %}
-         |  CompExpr              {% id %}
-CompExpr -> CompExpr BaseExpr     {% tag("Comp", "left", "right") %}
+AndExpr  -> AndExpr "&" SeqExpr   {% tag("And", "left", _, "right") %}
+         |  SeqExpr               {% id %}
+SeqExpr  -> SeqExpr BaseExpr      {% tag("Seq", "left", "right") %}
          |  BaseExpr              {% id %}
 
 BaseExpr -> "(" Expr ")"          {% _2 %}

@@ -118,7 +118,7 @@ function * recursive (focus) {
     yield * lens(focus)
     // yes, you can modify an array while you're iterating over it
     for (const [childLens, childValue] of lensesForStructure(value)) {
-      q.push([pipe(lens, childLens), childValue])
+      q.push([seq(lens, childLens), childValue])
     }
   }
 }
@@ -158,7 +158,7 @@ const and = (x, y) => function * (focus) {
 }
 
 // `${x} ${y}`
-const pipe = (x, y) => function * (focus) {
+const seq = (x, y) => function * (focus) {
   for (const outer of x(focus)) {
     for (const inner of y(outer.match)) {
       yield {
@@ -247,7 +247,7 @@ module.exports = {
   project,
   and,
   alt,
-  pipe,
+  seq,
   object,
   array
 }

@@ -64,8 +64,8 @@ function compile (node, items) {
       return op(lenses.alt, node, items)
     case 'And':
       return op(lenses.and, node, items)
-    case 'Comp':
-      return op(lenses.pipe, node, items)
+    case 'Seq':
+      return op(lenses.seq, node, items)
     case 'Object':
       return lenses.object(mapEntries(node, items))
     case 'Array':

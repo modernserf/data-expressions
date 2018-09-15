@@ -2,7 +2,7 @@ const tape = require('tape')
 const {
   test, match, replace, exec,
   id, key, index, slice, where, value, regex, spread, recursive,
-  collect, project, alt, and, pipe, array, object
+  collect, project, alt, and, seq, array, object
 } = require('./index')
 const { parse, dx } = require('./parser')
 
@@ -213,18 +213,18 @@ tape('project', (t) => {
   t.end()
 })
 
-tape('pipe', (t) => {
-  const lens = pipe(key('foo'), key('bar'))
+tape('seq', (t) => {
+  const lens = seq(key('foo'), key('bar'))
   const [res] = match(lens, { foo: { bar: 1 } })
   t.deepEquals(res, 1,
-    'pipe.match traverses structures')
+    'seq.match traverses structures')
   const out = replace(lens, { foo: { bar: 1 } }, 2)
   t.deepEquals(out, { foo: { bar: 2 } },
-    'pipe.replace traverses structures')
-  const lens2 = pipe(recursive, key('bar'))
+    'seq.replace traverses structures')
+  const lens2 = seq(recursive, key('bar'))
   const out2 = replace(lens2, { foo: { quux: { flerb: { bar: 1 } } } }, 2)
   t.deepEquals(out2, { foo: { quux: { flerb: { bar: 2 } } } },
-    'pipe.replace recursive updates')
+    'seq.replace recursive updates')
   t.end()
 })
 
@@ -260,7 +260,7 @@ p.dqstring = (value) => ({ type: 'dqstring', value })
 p.Spread = { type: 'Spread' }
 p.Recursive = { type: 'Recursive' }
 p.Array = (...value) => ({ type: 'Array', value })
-p.Comp = (left, right) => ({ type: 'Comp', left, right })
+p.Seq = (left, right) => ({ type: 'Seq', left, right })
 
 tape('parser', (t) => {
   t.deepEquals(p`.foo`, p.Key(p.ident('foo')))
@@ -272,8 +272,8 @@ tape('parser', (t) => {
   t.throws(() => p`***`)
   t.deepEquals(p`[]`, p.Array())
   t.deepEquals(p`[.foo ]`, p.Array(p.Key(p.ident('foo'))))
-  t.deepEquals(p`.foo*`, p.Comp(p.Key(p.ident('foo')), p.Spread))
-  t.deepEquals(p`**.bar`, p.Comp(p.Recursive, p.Key(p.ident('bar'))))
+  t.deepEquals(p`.foo*`, p.Seq(p.Key(p.ident('foo')), p.Spread))
+  t.deepEquals(p`**.bar`, p.Seq(p.Recursive, p.Key(p.ident('bar'))))
   t.end()
 })
 
