@@ -5,14 +5,14 @@ function id(x) { return x[0]; }
 
 const moo = require("moo");
 const lexer = moo.compile({
-  ws: { match: /[ \t\n]+/, lineBreaks: true },
   int: { match: /-?\d+/, value: (x) => Number(x) },
   ident: /[A-Za-z_$][A-Za-z0-9_$]*/,
   placeholder: { match: /<\d+>/, value: (x) => Number(x.slice(1, -1)) },
   dqstring: { match: /"(?:\\"|[^"\n])+"/, value: (x) => x.slice(1, -1) },
   recursive: /\*\*/,
   spread: /\*/,
-  op: /[|&(){}[\].,:?]/
+  op: /[|&(){}[\].,:?]/,
+  ws: { match: /[ \t\n]+/, lineBreaks: true },
 })
 
 const next = lexer.next.bind(lexer)
