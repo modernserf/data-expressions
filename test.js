@@ -254,36 +254,37 @@ tape('object', (t) => {
 const p = (strs, ...items) => parse(strs, items)
 p.Key = (value, optional = false) => ({ type: 'Key', value, optional })
 p.ident = (value) => ({ type: 'ident', value })
-p.placeholder = (value) => ({ type: 'placeholder', value })
+p.ph = (value) => ({ type: 'placeholder', value })
 p.int = (value) => ({ type: 'int', value })
 p.dqstring = (value) => ({ type: 'dqstring', value })
 p.Spread = { type: 'Spread' }
 p.Recursive = { type: 'Recursive' }
-p.Array = (...value) => ({ type: 'Array', value })
+p.Array = (value, rest = null) => ({ type: 'Array', value, rest })
 p.Seq = (left, right) => ({ type: 'Seq', left, right })
 p.Slice = (from, to) => ({ type: 'Slice', from, to })
 p.Entry = (key, value, optional = false) => ({ type: 'Entry', key, value, optional })
-p.Object = (...value) => ({ type: 'Object', value })
+p.Object = (value) => ({ type: 'Object', value })
 
 tape('parser', (t) => {
   t.deepEquals(p`.foo`, p.Key(p.ident('foo')))
-  t.deepEquals(p`.${123}?`, p.Key(p.placeholder(0), true))
+  t.deepEquals(p`.${123}?`, p.Key(p.ph(0), true))
   t.deepEquals(p`.1`, p.Key(p.int(1)))
   t.deepEquals(p`."foo bar"?`, p.Key(p.dqstring('foo bar'), true))
   t.deepEquals(p`*`, p.Spread)
   t.deepEquals(p`**`, p.Recursive)
   t.throws(() => p`***`)
-  t.deepEquals(p`[]`, p.Array())
-  t.deepEquals(p`[.foo ]`, p.Array(p.Key(p.ident('foo'))))
+  t.deepEquals(p`[]`, p.Array([]))
+  t.deepEquals(p`[.foo ]`, p.Array([p.Key(p.ident('foo'))]))
+  t.deepEquals(p`[${0} ...${0}]`, p.Array([p.ph(0)], p.ph(1)))
   t.deepEquals(p`.foo*`, p.Seq(p.Key(p.ident('foo')), p.Spread))
   t.deepEquals(p`**.bar`, p.Seq(p.Recursive, p.Key(p.ident('bar'))))
   t.deepEquals(p`.[:2]`, p.Slice(null, p.int(2)))
   t.deepEquals(p`.[1:2]`, p.Slice(p.int(1), p.int(2)))
   t.deepEquals(p`{x: 1, y?: 2}`,
-    p.Object(
+    p.Object([
       p.Entry(p.ident('x'), p.int(1)),
       p.Entry(p.ident('y'), p.int(2), true)
-    ))
+    ]))
   t.end()
 })
 

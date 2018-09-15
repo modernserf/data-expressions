@@ -1,3 +1,5 @@
+const { test } = require('./operations.js')
+
 function * id (focus) {
   yield { match: focus, replace: (value) => value }
 }
@@ -73,6 +75,15 @@ const where = (fn) => function * (focus) {
 }
 
 const value = (val) => where((x) => x === val)
+// eslint-disable-next-line valid-typeof
+const typeOf = (t) => where((x) => typeof x === t)
+const instanceOf = (Type) => where((x) => x instanceof Type)
+const number = typeOf('number')
+const string = typeOf('string')
+const bool = typeOf('boolean')
+const func = typeOf('function')
+const symbol = typeOf('symbol')
+const date = where((x) => typeof x.getTime === 'function')
 
 const regex = (re) => function * (focus) {
   // "fresh" regex on every invocation
@@ -231,6 +242,13 @@ const array = (array) => function * (focus) {
   yield * array.reduce(arrayReducer, arrayInit)(focus)
 }
 
+const arrayOf = (lens) => function * (focus) {
+  for (const item of focus) {
+    if (!test(lens, item)) { return }
+  }
+  yield * id(focus)
+}
+
 function lensesForStructure (value) {
   if (Array.isArray(value)) {
     return value.map((val, i) =>
@@ -259,5 +277,14 @@ module.exports = {
   alt,
   seq,
   object,
-  array
+  array,
+  arrayOf,
+  typeOf,
+  instanceOf,
+  number,
+  string,
+  func,
+  bool,
+  symbol,
+  date
 }

@@ -7,7 +7,7 @@ function parse (strs, items) {
   const parser = new Parser(Grammar.fromCompiled(grammar))
   for (let i = 0; i < strs.length; i++) {
     parser.feed(strs[i])
-    if (items[i]) { parser.feed(`<${i}>`) }
+    if (items.length > i) { parser.feed(`<${i}>`) }
   }
   const { results } = parser
   if (results.length !== 1) {
