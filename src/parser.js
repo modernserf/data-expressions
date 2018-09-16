@@ -103,6 +103,10 @@ export function dx (strs, ...items) {
   const gen = compile(parse(strs, items), items)
   gen.test = (focus) => operations.test(gen, focus)
   gen.match = (focus) => operations.match(gen, focus)
+  gen.match1 = (focus) => {
+    const [res] = operations.match(gen, focus)
+    return res
+  }
   gen.replace = (focus, value) => operations.replace(gen, focus, value)
   gen.exec = (focus, fn) => operations.exec(gen, focus, fn)
   return gen
@@ -122,41 +126,39 @@ p.Slice = (from, to) => ({ type: 'Slice', from, to })
 p.Entry = (key, value, optional = false) => ({ type: 'Entry', key, value, optional })
 p.Object = (value) => ({ type: 'Object', value })
 
-export function test_parser (t) {
-  t.deepEquals(p`.foo`, p.Key(p.ident('foo')))
-  t.deepEquals(p`.${123}?`, p.Key(p.ph(0), true))
-  t.deepEquals(p`.1`, p.Key(p.int(1)))
-  t.deepEquals(p`."foo bar"?`, p.Key(p.dqstring('foo bar'), true))
-  t.deepEquals(p`*`, p.Spread)
-  t.deepEquals(p`**`, p.Recursive)
-  t.throws(() => p`***`)
-  t.deepEquals(p`[]`, p.Array([]))
-  t.deepEquals(p`[.foo ]`, p.Array([p.Key(p.ident('foo'))]))
-  t.deepEquals(p`[${0} ...${0}]`, p.Array([p.ph(0)], p.ph(1)))
-  t.deepEquals(p`.foo*`, p.Seq(p.Key(p.ident('foo')), p.Spread))
-  t.deepEquals(p`**.bar`, p.Seq(p.Recursive, p.Key(p.ident('bar'))))
-  t.deepEquals(p`.[:2]`, p.Slice(null, p.int(2)))
-  t.deepEquals(p`.[1:2]`, p.Slice(p.int(1), p.int(2)))
-  t.deepEquals(p`{x: 1, y?: 2}`, p.Object([
+export function test_parser (expect) {
+  expect(p`.foo`).toEqual(p.Key(p.ident('foo')))
+  expect(p`.${123}?`).toEqual(p.Key(p.ph(0), true))
+  expect(p`.1`).toEqual(p.Key(p.int(1)))
+  expect(p`."foo bar"?`).toEqual(p.Key(p.dqstring('foo bar'), true))
+  expect(p`*`).toEqual(p.Spread)
+  expect(p`**`).toEqual(p.Recursive)
+  expect(() => p`***`).toThrow()
+  expect(p`[]`).toEqual(p.Array([]))
+  expect(p`[.foo ]`).toEqual(p.Array([p.Key(p.ident('foo'))]))
+  expect(p`[${0} ...${0}]`).toEqual(p.Array([p.ph(0)], p.ph(1)))
+  expect(p`.foo*`).toEqual(p.Seq(p.Key(p.ident('foo')), p.Spread))
+  expect(p`**.bar`).toEqual(p.Seq(p.Recursive, p.Key(p.ident('bar'))))
+  expect(p`.[:2]`).toEqual(p.Slice(null, p.int(2)))
+  expect(p`.[1:2]`).toEqual(p.Slice(p.int(1), p.int(2)))
+  expect(p`{x: 1, y?: 2}`).toEqual(p.Object([
     p.Entry(p.ident('x'), p.int(1)),
     p.Entry(p.ident('y'), p.int(2), true)
   ]))
-  t.end()
 }
 
 // TODO: use method form, put on landing page
 // demos are integration tests
-export function test_template_string (t) {
+export function test_template_string (expect) {
   const { match } = operations
   const [res] = match(dx`.foo`, { foo: 1 })
-  t.deepEquals(res, 1)
+  expect(res).toEqual(1)
   const [...res2] = match(dx`.foo | .bar`, { foo: 1, bar: 2 })
-  t.deepEquals(res2, [1, 2])
+  expect(res2).toEqual([1, 2])
   const [res3] = match(dx`.foo .bar`, { foo: { bar: 3 } })
-  t.deepEquals(res3, 3)
+  expect(res3).toEqual(3)
   const [res4] = match(dx`.foo .0`, { foo: ['bar', 'baz'] })
-  t.deepEquals(res4, 'bar')
+  expect(res4).toEqual('bar')
   const [res5] = match(dx`.foo.0`, { foo: ['bar', 'baz'] })
-  t.deepEquals(res5, 'bar')
-  t.end()
+  expect(res5).toEqual('bar')
 }

@@ -15,21 +15,19 @@ import { test, match, replace, exec } from './operations.js'
 export function * id (focus) {
   yield { match: focus, replace: (value) => value }
 }
-export function test_id (t) {
+export function test_id (expect) {
   const [res] = match(id, { foo: 1 })
-  t.deepEquals(res, { foo: 1 },
-    'id.match returns itself')
+  // id.match returns itself
+  expect(res).toEqual({ foo: 1 })
   const out = replace(id, { foo: 1 }, { bar: 2 })
-  t.deepEquals(out, { bar: 2 },
+  expect(out).toEqual({ bar: 2 },
     'id.replace returns the new value')
-  t.end()
 }
 
 // Fails for any focus. Useful for halting/pruning match results.
 export function * fail () {}
-export function test_fail (t) {
-  t.false(test(seq(id, fail), 'foo'))
-  t.end()
+export function test_fail (expect) {
+  expect(test(seq(id, fail), 'foo')).toEqual(false)
 }
 
 // `.foo`, `."foo"`,`.${string}`
@@ -42,16 +40,15 @@ export const key = (key) => function * (focus) {
     }
   }
 }
-export function test_key (t) {
+export function test_key (expect) {
   const [res] = match(key('foo'), { foo: { bar: 1 } })
-  t.deepEquals(res, { bar: 1 },
+  expect(res).toEqual({ bar: 1 },
     'key.match returns the field at key')
   const out = replace(key('foo'), { foo: { bar: 1 } }, { quux: 2 })
-  t.deepEquals(out, { foo: { quux: 2 } },
+  expect(out).toEqual({ foo: { quux: 2 } },
     'key.replace returns the object with key updated')
-  t.false(test(key('baz')), { foo: { bar: 1 } },
-    'key.test fails if key not present')
-  t.end()
+  expect(test(key('baz')), { foo: { bar: 1 } }).toEqual(false)
+  // 'key.test fails if key not present')
 }
 
 function hasKey (focus, key) {
@@ -67,11 +64,10 @@ key.optional = (key) => function * (focus) {
     replace: (value) => ({ ...focus, [key]: value })
   }
 }
-export function test_key_optional (t) {
+export function test_key_optional (expect) {
   const out = replace(key.optional('baz'), { foo: { bar: 1 } }, { quux: 2 })
-  t.deepEquals(out, { foo: { bar: 1 }, baz: { quux: 2 } },
+  expect(out).toEqual({ foo: { bar: 1 }, baz: { quux: 2 } },
     'key.optional.replace inserts values at a new key')
-  t.end()
 }
 
 // `.1` , `.${number}`
@@ -91,25 +87,24 @@ export const index = (i) => function * (focus) {
     }
   }
 }
-export function test_index (t) {
+export function test_index (expect) {
   const [res] = match(index(1), ['foo', 'bar', 'baz'])
-  t.deepEquals(res, 'bar',
+  expect(res).toEqual('bar',
     'index.match gets array items')
   const [res2] = match(index(-1), ['foo', 'bar', 'baz'])
-  t.deepEquals(res2, 'baz',
+  expect(res2).toEqual('baz',
     'index.match gets item from end with negative index')
-  t.false(test(index(5), ['foo', 'bar', 'baz']),
-    'index.match does not return when out of range')
+  expect(test(index(5), ['foo', 'bar', 'baz'])).toEqual(false)
+  // 'index.match does not return when out of range')
   const out = replace(index(1), ['foo', 'bar', 'baz'], 'quux')
-  t.deepEquals(out, ['foo', 'quux', 'baz'],
+  expect(out).toEqual(['foo', 'quux', 'baz'],
     'index.replace updates array items')
   const out2 = replace(index(-1), ['foo', 'bar', 'baz'], 'quux')
-  t.deepEquals(out2, ['foo', 'bar', 'quux'],
+  expect(out2).toEqual(['foo', 'bar', 'quux'],
     'index.replace works with negative index')
   const out3 = replace(index(5), ['foo', 'bar', 'baz'], 'quux')
-  t.deepEquals(out3, ['foo', 'bar', 'baz'],
+  expect(out3).toEqual(['foo', 'bar', 'baz'],
     'index.replace does not beyond end of list')
-  t.end()
 }
 
 // `.1?` , `.${number}?`
@@ -126,14 +121,13 @@ index.optional = (i) => function * (focus) {
     }
   }
 }
-export function test_index_optional (t) {
+export function test_index_optional (expect) {
   const [...res] = match(index.optional(10), ['foo', 'bar', 'baz'])
-  t.deepEquals(res, [undefined],
+  expect(res).toEqual([undefined],
     'index.optional.match always yields, even if result is undefined')
   const out = replace(index.optional(5), ['foo', 'bar', 'baz'], 'quux')
-  t.deepEquals(out, ['foo', 'bar', 'baz', undefined, undefined, 'quux'],
+  expect(out).toEqual(['foo', 'bar', 'baz', undefined, undefined, 'quux'],
     'index.optional.replace adds past the end of a list')
-  t.end()
 }
 
 // `.[1:3]`, `.[${from}:${to}]`
@@ -148,12 +142,11 @@ export const slice = (start, end) => function * (focus) {
     ]
   }
 }
-export function test_slice (t) {
+export function test_slice (expect) {
   const [res] = match(slice(1), ['foo', 'bar', 'baz'])
-  t.deepEquals(res, ['bar', 'baz'])
+  expect(res).toEqual(['bar', 'baz'])
   const out = replace(slice(1, 3), ['foo', 'bar', 'baz', 'quux'], ['flerb'])
-  t.deepEquals(out, ['foo', 'flerb', 'quux'])
-  t.end()
+  expect(out).toEqual(['foo', 'flerb', 'quux'])
 }
 
 export const where = (fn) => function * (focus) {
@@ -161,35 +154,33 @@ export const where = (fn) => function * (focus) {
     yield { match: focus, replace: (value) => value }
   }
 }
-export function test_where (t) {
+export function test_where (expect) {
   const gt10 = (x) => x > 10
   const [res] = match(where(gt10), 100)
-  t.deepEquals(res, 100,
+  expect(res).toEqual(100,
     'where.match returns focus on success')
-  t.false(test(where(gt10), 5),
-    'where.match does not return on failure')
+  expect(test(where(gt10), 5)).toEqual(false)
+  // 'where.match does not return on failure')
   const out = replace(where(gt10), 100, 200)
-  t.deepEquals(out, 200,
+  expect(out).toEqual(200,
     'where.replace returns value on success')
   const out2 = replace(where(gt10), 5, 200)
-  t.deepEquals(out2, 5,
+  expect(out2).toEqual(5,
     'where.replace returns focus on failure')
-  t.end()
 }
 
 // `"foo"`, `1`, `${value}` (NOTE: no `.`)
 // JS Primitives (strings, numbers, bools) succeed if the focus === the value.
 export const value = (val) => where((x) => x === val)
-export function test_value (t) {
+export function test_value (expect) {
   const sym = Symbol('a symbol')
   const [res] = match(value(sym), sym)
-  t.deepEquals(res, sym)
+  expect(res).toEqual(sym)
   const out = replace(value(sym), sym, 'foo')
-  t.deepEquals(out, 'foo')
-  t.end()
+  expect(out).toEqual('foo')
 }
 
-export const typeOf = (t) => where((x) => typeof x === t) // eslint-disable-line valid-typeof
+export const typeOf = (type) => where((x) => typeof x === type) // eslint-disable-line valid-typeof
 export const instanceOf = (Type) => where((x) => x instanceof Type)
 export const number = typeOf('number')
 export const string = typeOf('string')
@@ -225,15 +216,14 @@ export const regex = (re) => function * (focus) {
     }
   }
 }
-export function test_regex (t) {
+export function test_regex (expect) {
   const [res] = match(regex(/f../), 'foobar')
-  t.deepEquals(res, 'foo')
+  expect(res).toEqual('foo')
   const out = replace(regex(/f../), 'foobar', 'baz')
-  t.deepEquals(out, 'bazbar')
+  expect(out).toEqual('bazbar')
   const [...res2] = match(regex(/h./g), 'ha ho he hi')
-  t.deepEquals(res2, ['ha', 'ho', 'he', 'hi'])
-  t.comment('TODO: reasonable behavior for regex/g.replace')
-  t.end()
+  expect(res2).toEqual(['ha', 'ho', 'he', 'hi'])
+  expect.comment('TODO: reasonable behavior for regex/g.replace')
 }
 
 // `*`
@@ -243,26 +233,25 @@ export function * spread (focus) {
     yield * lens(focus)
   }
 }
-export function test_spread (t) {
+export function test_spread (expect) {
   const [...res] = match(spread, [1, 2, 3])
-  t.deepEquals(res, [1, 2, 3],
+  expect(res).toEqual([1, 2, 3],
     'spread array')
   const [...res2] = match(spread, { foo: 1, bar: 2, baz: 3 })
-  t.deepEquals(res2, [1, 2, 3],
+  expect(res2).toEqual([1, 2, 3],
     'spread object')
   const [...out] = exec(spread, [1, 2, 3], (x) => x + 1)
-  t.deepEquals(out, [
+  expect(out).toEqual([
     [2, 2, 3],
     [1, 3, 3],
     [1, 2, 4]
   ])
   const [...out2] = exec(spread, { foo: 1, bar: 2, baz: 3 }, (x) => x + 1)
-  t.deepEquals(out2, [
+  expect(out2).toEqual([
     { foo: 2, bar: 2, baz: 3 },
     { foo: 1, bar: 3, baz: 3 },
     { foo: 1, bar: 2, baz: 4 }
   ])
-  t.end()
 }
 
 // `**`
@@ -288,9 +277,9 @@ function * _recursive (focus, maxVisits) {
 export const recursive = (focus) => _recursive(focus, 1)
 recursive.maxVisits = (maxVisits) =>
   (focus) => _recursive(focus, maxVisits)
-export function test_recursive (t) {
+export function test_recursive (expect) {
   const [...matches] = match(recursive, { foo: 1, bar: [2, { baz: 3 }] })
-  t.deepEquals(matches, [
+  expect(matches).toEqual([
     { foo: 1, bar: [2, { baz: 3 }] },
     1,
     [2, { baz: 3 }],
@@ -299,7 +288,7 @@ export function test_recursive (t) {
     3
   ], 'recursive.match returns all items traversed in breadth-first order')
   const [...out] = exec(recursive, { foo: 1, bar: [2, { baz: 3 }] }, () => 'quux')
-  t.deepEquals(out, [
+  expect(out).toEqual([
     'quux',
     { foo: 'quux', bar: [2, { baz: 3 }] },
     { foo: 1, bar: 'quux' },
@@ -307,8 +296,7 @@ export function test_recursive (t) {
     { foo: 1, bar: [2, 'quux'] },
     { foo: 1, bar: [2, { baz: 'quux' }] }
   ], 'recursive.replace returns multiple items')
-  t.comment('TODO: circular structures')
-  t.end()
+  expect.comment('TODO: circular structures')
 }
 
 function defaultReducer (l = { match: [], replace: () => [] }, r) {
@@ -324,20 +312,19 @@ export const collect = (x, reducer = defaultReducer) => function * (focus) {
   }
   yield collected
 }
-export function test_collect (t) {
+export function test_collect (expect) {
   const lens = collect(alt(key('foo'), key('bar')))
   const [res] = match(lens, { foo: 1, bar: 2, baz: 3 })
-  t.deepEquals(res, [1, 2],
+  expect(res).toEqual([1, 2],
     'collect.match returns an array of results')
   const [res2] = match(lens, { foo: 1, quux: 2 })
-  t.deepEquals(res2, [1],
+  expect(res2).toEqual([1],
     'collect.match propagates failure')
   const out = replace(lens, { foo: 1, bar: 2, baz: 3 }, 10)
-  t.deepEquals(out, [
+  expect(out).toEqual([
     { foo: 10, bar: 2, baz: 3 },
     { foo: 1, bar: 10, baz: 3 }
   ], 'collect.replace returns an array of results')
-  t.end()
 }
 
 export const project = (fn) => function * (focus) {
@@ -346,13 +333,12 @@ export const project = (fn) => function * (focus) {
     replace: (value) => value
   }
 }
-export function test_project (t) {
+export function test_project (expect) {
   const lens = project((x) => x.toUpperCase())
   const [res] = match(lens, 'foo')
-  t.deepEquals(res, 'FOO')
+  expect(res).toEqual('FOO')
   const out = replace(lens, 'foo', 'bar')
-  t.deepEquals(out, 'bar')
-  t.end()
+  expect(out).toEqual('bar')
 }
 
 // ## Operators
@@ -364,28 +350,27 @@ export const alt = (x, y) => function * (focus) {
   yield * x(focus)
   yield * y(focus)
 }
-export function test_alt (t) {
+export function test_alt (expect) {
   const lens = alt(key('foo'), key('bar'))
   const [res] = match(lens, { foo: 1, baz: 3 })
-  t.deepEquals(res, 1,
+  expect(res).toEqual(1,
     'alt.match returns first on success')
   const [res2] = match(lens, { bar: 2, baz: 3 })
-  t.deepEquals(res2, 2,
+  expect(res2).toEqual(2,
     'alt.match returns second if first fails')
-  t.false(test(lens, { baz: 3 }),
-    'alt.match fails if both fail')
+  expect(test(lens, { baz: 3 })).toEqual(false)
+  // 'alt.match fails if both fail')
   const out = replace(lens, { foo: 1, baz: 3 }, 10)
-  t.deepEquals(out, { foo: 10, baz: 3 },
+  expect(out).toEqual({ foo: 10, baz: 3 },
     'alt.replace on first item')
   const out2 = replace(lens, { bar: 2, baz: 3 }, 10)
-  t.deepEquals(out2, { bar: 10, baz: 3 },
+  expect(out2).toEqual({ bar: 10, baz: 3 },
     'alt.replace on second item')
   const [...out3] = exec(lens, { foo: 1, bar: 2, baz: 3 }, () => 10)
-  t.deepEquals(out3, [
+  expect(out3).toEqual([
     { foo: 10, bar: 2, baz: 3 },
     { foo: 1, bar: 10, baz: 3 }
   ], 'alt.replace returns multiple items on success')
-  t.end()
 }
 
 // `${x} & ${y}`
@@ -395,14 +380,13 @@ export const and = (x, y) => function * (focus) {
     yield * y(focus)
   }
 }
-export function test_and (t) {
+export function test_and (expect) {
   const lens = and(key('foo'), key('bar'))
   const [res] = match(lens, { foo: 1, bar: 2 })
-  t.deepEquals(res, 2)
-  t.false(test(lens, { bar: 2, quux: 3 }))
+  expect(res).toEqual(2)
+  expect(test(lens, { bar: 2, quux: 3 })).toEqual(false)
   const out = replace(lens, { foo: 1, bar: 2 }, 4)
-  t.deepEquals(out, { foo: 1, bar: 4 })
-  t.end()
+  expect(out).toEqual({ foo: 1, bar: 4 })
 }
 
 // `.foo.bar` , `.foo .bar`
@@ -417,19 +401,18 @@ export const seq = (x, y) => function * (focus) {
     }
   }
 }
-export function test_seq (t) {
+export function test_seq (expect) {
   const lens = seq(key('foo'), key('bar'))
   const [res] = match(lens, { foo: { bar: 1 } })
-  t.deepEquals(res, 1,
+  expect(res).toEqual(1,
     'seq.match traverses structures')
   const out = replace(lens, { foo: { bar: 1 } }, 2)
-  t.deepEquals(out, { foo: { bar: 2 } },
+  expect(out).toEqual({ foo: { bar: 2 } },
     'seq.replace traverses structures')
   const lens2 = seq(recursive, key('bar'))
   const out2 = replace(lens2, { foo: { quux: { flerb: { bar: 1 } } } }, 2)
-  t.deepEquals(out2, { foo: { quux: { flerb: { bar: 2 } } } },
+  expect(out2).toEqual({ foo: { quux: { flerb: { bar: 2 } } } },
     'seq.replace recursive updates')
-  t.end()
 }
 
 // `{foo: ${x}, bar?: ${y} }`
@@ -460,17 +443,16 @@ export const object = (entries) => function * (focus) {
   if (!Array.isArray(entries)) { entries = Object.entries(entries) }
   yield * entries.reduce(entryReducer, objectInit)(focus)
 }
-export function test_object (t) {
+export function test_object (expect) {
   const lens = object({
     foo: where((x) => x > 0),
     bar: where((x) => typeof x === 'string')
   })
   const focus = { foo: 10, bar: 'a string', baz: ['else'] }
   const [res] = match(lens, focus)
-  t.deepEquals(res, { foo: 10, bar: 'a string' })
+  expect(res).toEqual({ foo: 10, bar: 'a string' })
   const out = replace(lens, focus, { foo: 20, bar: 'flerb' })
-  t.deepEquals(out, { foo: 20, bar: 'flerb', baz: ['else'] })
-  t.end()
+  expect(out).toEqual({ foo: 20, bar: 'flerb', baz: ['else'] })
 }
 
 function * arrayInit () {
@@ -508,19 +490,17 @@ export const array = (array, rest) => function * (focus) {
     yield * head(focus)
   }
 }
-export function test_array (t) {
+export function test_array (expect) {
   const lens = array([value('foo'), number])
   const [res] = match(lens, ['foo', 1])
-  t.deepEquals(res, ['foo', 1])
+  expect(res).toEqual(['foo', 1])
   const out = replace(lens, ['foo', 1], ['bar', 10])
-  t.deepEquals(out, ['bar', 10])
-  t.end()
+  expect(out).toEqual(['bar', 10])
 }
-export function test_array_rest (t) {
+export function test_array_rest (expect) {
   const lens = array([value('foo')], arrayOf(number))
   const [res] = match(lens, ['foo', 1, 2, 3])
-  t.deepEquals(res, ['foo', 1, 2, 3])
-  t.end()
+  expect(res).toEqual(['foo', 1, 2, 3])
 }
 
 export const arrayOf = (lens) => function * (focus) {
@@ -529,11 +509,10 @@ export const arrayOf = (lens) => function * (focus) {
   }
   yield * id(focus)
 }
-export function test_arrayOf (t) {
+export function test_arrayOf (expect) {
   const lens = arrayOf(key('foo'))
-  t.true(test(lens, [{ foo: 1 }, { foo: 2 }]))
-  t.false(test(lens, [{ foo: 1 }, { bar: 2 }]))
-  t.end()
+  expect(test(lens, [{ foo: 1 }, { foo: 2 }])).toEqual(true)
+  expect(test(lens, [{ foo: 1 }, { bar: 2 }])).toEqual(false)
 }
 
 function lensesForStructure (value) {
