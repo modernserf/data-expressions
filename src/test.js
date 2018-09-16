@@ -3,6 +3,7 @@ import * as parser from './parser.js'
 import * as index from './index.js'
 const tape = require('tape')
 
+// Use Jasmine-style `expect(value).toEqual(expected)` test assertions.
 const expecter = (t) => {
   const f = (value) => ({
     toEqual: (expected) => t.deepEquals(value, expected),
@@ -12,10 +13,14 @@ const expecter = (t) => {
   return f
 }
 
+// Use the exported function's name to determine if it's a test, and if it should be skipped/isolated
 const tester = (tape, key, cb) => {
-  if (!/^test_/.test(key)) { return }
-  const test = /only$/.test(key) ? tape.only : tape
-  const message = key.replace('test_', '').replace(/_/g, ' ')
+  const test = /^only_test_/.test(key) ? tape.only
+    : /^skip_test_/.test(key) ? tape.skip
+      : /^test_/.test(key) ? tape
+        : null
+  if (!test) { return }
+  const message = key.replace(/^(skip_|only_)?test_/, '').replace(/_/g, ' ')
   return test(message, cb)
 }
 
