@@ -1,5 +1,5 @@
 import grammar from './grammar.build.js'
-import * as lenses from './lenses.js'
+import { key as keyPattern, id, index, slice, value, array, object, regex, seq, alt, and, spread, recursive } from './patterns.js'
 import * as operations from './operations.js'
 const { Parser, Grammar } = require('nearley')
 
@@ -49,49 +49,49 @@ function lensForInterpolation (val) {
     case 'function':
       return val
     case 'object':
-      if (val === null) { return lenses.value(null) }
-      if (Array.isArray(val)) { return lenses.array(val) }
-      if (val instanceof RegExp) { return lenses.regex(val) }
-      return lenses.object(val)
+      if (val === null) { return value(null) }
+      if (Array.isArray(val)) { return array(val) }
+      if (val instanceof RegExp) { return regex(val) }
+      return object(val)
     default:
-      return lenses.value(val)
+      return value(val)
   }
 }
 
 export function compile (node, items) {
   switch (node.type) {
     case 'Alt':
-      return op(lenses.alt, node, items)
+      return op(alt, node, items)
     case 'And':
-      return op(lenses.and, node, items)
+      return op(and, node, items)
     case 'Seq':
-      return op(lenses.seq, node, items)
+      return op(seq, node, items)
     case 'Object':
-      return lenses.object(mapEntries(node, items))
+      return object(mapEntries(node, items))
     case 'Array':
-      return lenses.array(node.values.map((n) => compile(n, items)))
+      return array(node.values.map((n) => compile(n, items)))
     case 'Key': {
       let key = getKeyVal(node.value, items)
       if (typeof key === 'string') {
-        return opt(lenses.key)(key)
+        return opt(keyPattern)(key)
       } else {
-        return opt(lenses.index)(key)
+        return opt(index)(key)
       }
     }
     case 'Slice': {
       let from = node.from ? getKeyVal(node.from) : undefined
       let to = node.to ? getKeyVal(node.to) : undefined
-      return lenses.slice(from, to)
+      return slice(from, to)
     }
     case 'Spread':
-      return lenses.spread
+      return spread
     case 'Recursive':
-      return lenses.recursive
+      return recursive
     case 'ID':
-      return lenses.id
+      return id
     case 'dqstring':
     case 'int':
-      return lenses.value(node.value)
+      return value(node.value)
     case 'placeholder':
       return lensForInterpolation(items[node.value])
     default:
