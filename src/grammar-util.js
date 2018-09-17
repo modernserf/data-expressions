@@ -4,7 +4,7 @@ export const lexer = moo.compile({
   ident: /[A-Za-z_$][A-Za-z0-9_$]*/,
   placeholder: { match: /<\d+>/, value: (x) => Number(x.slice(1, -1)) },
   dqstring: { match: /"(?:\\"|[^"\n])+"/, value: (x) => x.slice(1, -1) },
-  op: /[|&(){}[\],:?_]|\*+|\.+/,
+  op: /[|&(){}[\],:?!_]|\*+|\.+/,
   ws: { match: /[ \t\n]+/, lineBreaks: true }
 })
 

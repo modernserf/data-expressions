@@ -1,5 +1,5 @@
 import grammar from './grammar.build.js'
-import { key as keyPattern, id, index, slice, value, arrayShape, objectShape, regex, seq, alt, and, spread, recursive } from './patterns.js'
+import { key as keyPattern, id, index, slice, value, arrayShape, objectShape, regex, seq, alt, and, spread, recursive, limit } from './patterns.js'
 import { decoratePattern } from './operations.js'
 const { Parser, Grammar } = require('nearley')
 
@@ -70,6 +70,8 @@ export function compile (node, items) {
       return op(and, node, items)
     case 'Seq':
       return op(seq, node, items)
+    case 'Cut':
+      return limit(node.value, 1)
     case 'Object':
       return objectShape(node.value.map(compileEntry(items)))
     case 'Array':
@@ -122,6 +124,7 @@ p.Slice = (from, to) => ({ type: 'Slice', from, to })
 p.Entry = (key, value, optional = false) => ({ type: 'Entry', key, value, optional })
 p.ArrEntry = (value) => ({ type: 'ArrEntry', value })
 p.RestEntry = (value) => ({ type: 'RestEntry', value })
+p.Cut = (value) => ({ type: 'Cut', value })
 
 export function test_parser (expect) {
   expect(p`.foo`).toEqual(p.Key(p.ident('foo')))
@@ -142,6 +145,14 @@ export function test_parser (expect) {
     p.Entry(p.ident('x'), p.int(1)),
     p.Entry(p.ident('y'), p.int(2), true)
   ))
+  expect(p`.1 .2 ! .3`).toEqual(
+    p.Seq(
+      p.Cut(p.Seq(
+        p.Key(p.int(1)),
+        p.Key(p.int(2))
+      )),
+      p.Key(p.int(3))
+    ))
 }
 
 export function test_template_string (expect) {

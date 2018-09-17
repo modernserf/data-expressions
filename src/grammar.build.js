@@ -9,6 +9,7 @@ let ParserRules = [
     {"name": "AndExpr", "symbols": ["AndExpr", {"literal":"&"}, "SeqExpr"], "postprocess": tag("And", "left", _, "right")},
     {"name": "AndExpr", "symbols": ["SeqExpr"], "postprocess": id},
     {"name": "SeqExpr", "symbols": ["SeqExpr", "BaseExpr"], "postprocess": tag("Seq", "left", "right")},
+    {"name": "SeqExpr", "symbols": ["SeqExpr", {"literal":"!"}], "postprocess": tag("Cut", "value")},
     {"name": "SeqExpr", "symbols": ["BaseExpr"], "postprocess": id},
     {"name": "BaseExpr", "symbols": [{"literal":"("}, "Expr", {"literal":")"}], "postprocess": _2},
     {"name": "BaseExpr", "symbols": [{"literal":"{"}, "Object", {"literal":"}"}], "postprocess": tag("Object", _, "value")},

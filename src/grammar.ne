@@ -13,6 +13,7 @@ AltExpr  -> AltExpr "|" AndExpr   {% tag("Alt", "left", _, "right") %}
 AndExpr  -> AndExpr "&" SeqExpr   {% tag("And", "left", _, "right") %}
          |  SeqExpr               {% id %}
 SeqExpr  -> SeqExpr BaseExpr      {% tag("Seq", "left", "right") %}
+         |  SeqExpr "!"           {% tag("Cut", "value") %}
          |  BaseExpr              {% id %}
 
 BaseExpr -> "(" Expr ")"          {% _2 %}
