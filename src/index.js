@@ -10,16 +10,23 @@ export function test_example_1 (expect) {
   expect(dx`.foo.bar`.test({ foo: { bar: 3 } }))
     .toEqual(true)
   // Search value for a pattern, and return the results:
-  expect(dx`.foo.bar`.match1({ foo: { bar: 3 } }))
+  expect(dx`.foo.bar`.match({ foo: { bar: 3 } }))
     .toEqual(3)
   // Immutably replace values where a pattern matches:
   expect(dx`.foo.bar`.replace({ foo: { bar: 3 } }, 5))
     .toEqual({ foo: { bar: 5 } })
 }
 
+// ## API Reference
+
+// [Patterns](patterns.html)
 export {
   id, fail, key, index, slice, where, value, regex, spread, recursive, collect, project, and, alt, seq,
-  object, array, arrayOf, typeOf, instanceOf, number, string, func, bool, symbol, date
+  objectShape, arrayShape, arrayOf, typeOf, instanceOf, number, string, func, func as function, bool, bool as boolean, symbol, date
 } from './patterns.js'
-export { test, match, replace, exec } from './operations.js'
+
+// [Operations](operations.html)
+export { test, match, replace, updateAll } from './operations.js'
+
+// [Parser](parser.html)
 export { parse, compile, dx } from './parser.js'

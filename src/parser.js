@@ -1,6 +1,6 @@
 import grammar from './grammar.build.js'
-import { key as keyPattern, id, index, slice, value, array, object, regex, seq, alt, and, spread, recursive } from './patterns.js'
-import * as operations from './operations.js'
+import { key as keyPattern, id, index, slice, value, arrayShape, objectShape, regex, seq, alt, and, spread, recursive } from './patterns.js'
+import { decoratePattern } from './operations.js'
 const { Parser, Grammar } = require('nearley')
 
 export function parse (strs, items) {
@@ -32,11 +32,17 @@ function getKeyVal (node, items) {
   throw new Error('Invalid key type')
 }
 
-const mapEntries = (node, items) => {
-  return node.map(({ type, key, value, optional }) => {
-    if (type !== 'Entry') { throw new Error('Expected Entry Node') }
-    return [getKeyVal(key, items), compile(value, items), optional]
-  })
+const compileEntry = (items) => ({ type, key, value, optional }) => {
+  switch (type) {
+    case 'Entry':
+      return { type: 'Entry', key: getKeyVal(key, items), value: compile(value, items), optional }
+    case 'ArrEntry':
+      return { type: 'ArrEntry', value: compile(value, items) }
+    case 'RestEntry':
+      return { type: 'RestEntry', value: compile(value, items) }
+    default:
+      throw new Error('Expected Entry Node')
+  }
 }
 
 const op = (lens, node, items) =>
@@ -49,10 +55,8 @@ function lensForInterpolation (val) {
     case 'function':
       return val
     case 'object':
-      if (val === null) { return value(null) }
-      if (Array.isArray(val)) { return array(val) }
       if (val instanceof RegExp) { return regex(val) }
-      return object(val)
+      return value(val)
     default:
       return value(val)
   }
@@ -67,9 +71,9 @@ export function compile (node, items) {
     case 'Seq':
       return op(seq, node, items)
     case 'Object':
-      return object(mapEntries(node, items))
+      return objectShape(node.value.map(compileEntry(items)))
     case 'Array':
-      return array(node.values.map((n) => compile(n, items)))
+      return arrayShape(node.value.map(compileEntry(items)))
     case 'Key': {
       let key = getKeyVal(node.value, items)
       if (typeof key === 'string') {
@@ -100,16 +104,7 @@ export function compile (node, items) {
 }
 
 export function dx (strs, ...items) {
-  const gen = compile(parse(strs, items), items)
-  gen.test = (focus) => operations.test(gen, focus)
-  gen.match = (focus) => operations.match(gen, focus)
-  gen.match1 = (focus) => {
-    const [res] = operations.match(gen, focus)
-    return res
-  }
-  gen.replace = (focus, value) => operations.replace(gen, focus, value)
-  gen.exec = (focus, fn) => operations.exec(gen, focus, fn)
-  return gen
+  return decoratePattern(compile(parse(strs, items), items))
 }
 
 const p = (strs, ...items) => parse(strs, items)
@@ -120,11 +115,13 @@ p.int = (value) => ({ type: 'int', value })
 p.dqstring = (value) => ({ type: 'dqstring', value })
 p.Spread = { type: 'Spread' }
 p.Recursive = { type: 'Recursive' }
-p.Array = (value, rest = null) => ({ type: 'Array', value, rest })
+p.Array = (...value) => ({ type: 'Array', value })
+p.Object = (...value) => ({ type: 'Object', value })
 p.Seq = (left, right) => ({ type: 'Seq', left, right })
 p.Slice = (from, to) => ({ type: 'Slice', from, to })
 p.Entry = (key, value, optional = false) => ({ type: 'Entry', key, value, optional })
-p.Object = (value) => ({ type: 'Object', value })
+p.ArrEntry = (value) => ({ type: 'ArrEntry', value })
+p.RestEntry = (value) => ({ type: 'RestEntry', value })
 
 export function test_parser (expect) {
   expect(p`.foo`).toEqual(p.Key(p.ident('foo')))
@@ -134,31 +131,23 @@ export function test_parser (expect) {
   expect(p`*`).toEqual(p.Spread)
   expect(p`**`).toEqual(p.Recursive)
   expect(() => p`***`).toThrow()
-  expect(p`[]`).toEqual(p.Array([]))
-  expect(p`[.foo ]`).toEqual(p.Array([p.Key(p.ident('foo'))]))
-  expect(p`[${0} ...${0}]`).toEqual(p.Array([p.ph(0)], p.ph(1)))
+  expect(p`[]`).toEqual(p.Array())
+  expect(p`[.foo ]`).toEqual(p.Array(p.ArrEntry(p.Key(p.ident('foo')))))
+  expect(p`[${0}, ...${0}]`).toEqual(p.Array(p.ArrEntry(p.ph(0)), p.RestEntry(p.ph(1))))
   expect(p`.foo*`).toEqual(p.Seq(p.Key(p.ident('foo')), p.Spread))
   expect(p`**.bar`).toEqual(p.Seq(p.Recursive, p.Key(p.ident('bar'))))
   expect(p`.[:2]`).toEqual(p.Slice(null, p.int(2)))
   expect(p`.[1:2]`).toEqual(p.Slice(p.int(1), p.int(2)))
-  expect(p`{x: 1, y?: 2}`).toEqual(p.Object([
+  expect(p`{x: 1, y?: 2}`).toEqual(p.Object(
     p.Entry(p.ident('x'), p.int(1)),
     p.Entry(p.ident('y'), p.int(2), true)
-  ]))
+  ))
 }
 
-// TODO: use method form, put on landing page
-// demos are integration tests
 export function test_template_string (expect) {
-  const { match } = operations
-  const [res] = match(dx`.foo`, { foo: 1 })
-  expect(res).toEqual(1)
-  const [...res2] = match(dx`.foo | .bar`, { foo: 1, bar: 2 })
-  expect(res2).toEqual([1, 2])
-  const [res3] = match(dx`.foo .bar`, { foo: { bar: 3 } })
-  expect(res3).toEqual(3)
-  const [res4] = match(dx`.foo .0`, { foo: ['bar', 'baz'] })
-  expect(res4).toEqual('bar')
-  const [res5] = match(dx`.foo.0`, { foo: ['bar', 'baz'] })
-  expect(res5).toEqual('bar')
+  expect(dx`.foo`.match({ foo: 1 })).toEqual(1)
+  expect([...dx`.foo | .bar`.matchAll({ foo: 1, bar: 2 })]).toEqual([1, 2])
+  expect(dx`.foo .bar`.match({ foo: { bar: 3 } })).toEqual(3)
+  expect(dx`.foo .0`.match({ foo: ['bar', 'baz'] })).toEqual('bar')
+  expect(dx`.foo.0`.match({ foo: ['bar', 'baz'] })).toEqual('bar')
 }

@@ -17,7 +17,7 @@ SeqExpr  -> SeqExpr BaseExpr      {% tag("Seq", "left", "right") %}
 
 BaseExpr -> "(" Expr ")"          {% _2 %}
          |  "{" Object "}"        {% tag("Object", _, "value") %}
-         |  "[" Array Rest:? "]"  {% tag("Array", _, "value", "rest") %}
+         |  "[" Array "]"         {% tag("Array", _, "value",) %}
          |  "." Key Opt           {% tag("Key", _, "value", "optional") %}
          |  "." Slice             {% _2 %}
          |  "*"                   {% tag("Spread") %}
@@ -29,8 +29,10 @@ BaseExpr -> "(" Expr ")"          {% _2 %}
 
 Object   -> sep[Entry, ","]       {% id %}
 Entry    -> Key Opt ":" Expr      {% tag("Entry", "key", "optional", _, "value") %}
-Array    -> sep[Expr, ","]        {% id %}
-Rest     -> "..." Expr            {% _2 %}
+         |  "..." Expr            {% tag("RestEntry", _, "value") %}
+Array    -> sep[ArrEntry, ","]    {% id %}
+ArrEntry -> Expr                  {% tag("ArrEntry", "value") %}
+         |  "..." Expr            {% tag("RestEntry", _, "value") %}
 
 Slice -> "[" Int:? ":" Int:? "]"  {% tag("Slice", _, "from", _, "to") %}
 

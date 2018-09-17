@@ -8,27 +8,208 @@
 // - **yields** - Patterns are generators that yield `{ match, replace }`.
 // - **succeeds** - A pattern "succeeds" if it yields any values.
 
-import { test, match, replace, exec } from './operations.js'
+import { test, match, replace, updateAll } from './operations.js'
 
+// ## Basic Patterns
+
+// ### where
+// succeeds if `fn(focus)` is true, fails if `fn(focus)` is false.
+export const where = (fn) => function * (focus) {
+  if (fn(focus)) {
+    yield { match: focus, replace: (value) => value }
+  }
+}
+export function test_where (expect, dx) {
+  // `where` succeeds if the function returns true, and fails if it returns false.
+  expect(dx`${where((x) => x > 10)}`.test(100))
+    .toEqual(true)
+  expect(dx`${where((x) => x > 10)}`.test(1))
+    .toEqual(false)
+  // Matching yields the focus if the function returns true, and nothing if it returns false.
+  expect([...dx`${where((x) => x > 10)}`.matchAll(100)])
+    .toEqual([100])
+  expect([...dx`${where((x) => x > 10)}`.matchAll(1)])
+    .toEqual([])
+  // Replace returns the replacement value if the function returns true, and the focus if it returns false.
+  expect(dx`${where((x) => x > 10)}`.replace(100, 500))
+    .toEqual(500)
+  expect(dx`${where((x) => x > 10)}`.replace(1, 500))
+    .toEqual(1)
+}
+
+// ### id
 // `_`
-// Succeeds for any focus. Useful as a placeholder in complex expressions.
-export function * id (focus) {
-  yield { match: focus, replace: (value) => value }
-}
-export function test_id (expect) {
-  const [res] = match(id, { foo: 1 })
-  // id.match returns itself
-  expect(res).toEqual({ foo: 1 })
-  const out = replace(id, { foo: 1 }, { bar: 2 })
-  expect(out).toEqual({ bar: 2 },
-    'id.replace returns the new value')
+//
+// Always succeeds. Useful as a placeholder in complex expressions.
+export const id = where(() => true)
+
+export function test_id (expect, dx) {
+  // Matching will always return the focus.
+  expect(dx`_`.match({ foo: 1 })).toEqual({ foo: 1 })
+  // Replace will always return the replacement value.
+  expect(dx`_`.replace({ foo: 1 }, { bar: 2 })).toEqual({ bar: 2 })
 }
 
-// Fails for any focus. Useful for halting/pruning match results.
+// ### fail
+// Always fails. Useful for halting/pruning match results.
 export function * fail () {}
 export function test_fail (expect) {
   expect(test(seq(id, fail), 'foo')).toEqual(false)
 }
+
+// ### value
+// `"foo"`, `1`, `${primitive value}`
+//
+// Succeed if the focus `===` the value.
+export const value = (val) => where((x) => x === val)
+export function test_value (expect, dx) {
+  // double-quoted strings and numbers can be written in the data expression directly.
+  expect(dx`"foo"`.test('foo')).toEqual(true)
+  expect(dx`1`.test(1)).toEqual(true)
+  // Any JS primitives (strings, numbers, bools, symbols) interpolated into the data expression will act as a value pattern.
+  expect(dx`${1}`.test(1)).toEqual(true)
+  const sym = Symbol('a symbol')
+  expect(dx`${sym}`.test(sym)).toEqual(true)
+  // Complex data structures cannot be directly interpolated (they're interpreted as other patterns) but they can be "escaped" with `value` for testing reference equality.
+  const fn = function () {}
+  expect(dx`${value(fn)}`.test(fn)).toEqual(true)
+}
+
+// ### Type patterns
+// Succeeds if the focus has this type.
+export const typeOf = (type) => where((x) => typeof x === type) // eslint-disable-line valid-typeof
+export const instanceOf = (Type) => where((x) => x instanceof Type)
+export const number = typeOf('number')
+export const string = typeOf('string')
+export const bool = typeOf('boolean')
+export const func = typeOf('function')
+export const symbol = typeOf('symbol')
+export const object = where((x) => x && typeof x === 'object')
+export const array = where(Array.isArray)
+export const date = where((x) => x && typeof x.getTime === 'function')
+
+export function test_type_patterns (expect, dx) {
+  expect(dx`${number}`.test(123)).toEqual(true)
+  expect(dx`${string}`.test('foo')).toEqual(true)
+  expect(dx`${object}`.test({ foo: 123 })).toEqual(true)
+  expect(dx`${object}`.test(null)).toEqual(false)
+}
+
+// ## Structure patterns
+// These patterns match the shapes of structures.
+
+// `{foo: ${x}, bar?: ${y}, ...${z} }`
+// Succeeds if focus is an object where _all_ fields match the patterns at the corresponding key. Keys can also be _optional_ -- if the key is present in the focus, it must match; otherwise it is skipped. Replacement propagates _through_ the object's fields.
+export const objectShape = (entries) => {
+  if (!entries.some((e) => e.type === 'RestEntry')) {
+    entries = entries.concat([objectInit])
+  }
+  const entryReducer = (acc, entry) => function * (focus) {
+    if (entry.type === 'RestEntry') {
+      yield * entry.value(focus)
+      return
+    }
+    const { key, value: pattern, optional } = entry
+
+    if (!hasKey(focus, key)) {
+      if (optional) { yield * acc(focus) }
+      return
+    }
+    const { [key]: keyFocus, ...restFocus } = focus
+    for (const outer of acc(restFocus)) {
+      for (const inner of pattern(keyFocus)) {
+        yield {
+          match: { ...outer.match, [key]: inner.match },
+          replace: (value) => ({
+            ...outer.replace(value),
+            [key]: inner.replace(value[key])
+          })
+        }
+      }
+    }
+  }
+  return entries.reduceRight(entryReducer)
+}
+const objectInit = (focus) => [{ match: {}, replace: (value) => ({ ...focus, ...value }) }]
+
+export function test_objectShape (expect, dx) {
+  // The pattern succeeds if all fields succeed.
+  const pattern = dx`{foo: ${number}, bar: ${string}}`
+  expect(pattern.test({ foo: 10, bar: 'a string', baz: ['else'] })).toEqual(true)
+  // Match returns only the matched fields.
+  expect(pattern.match({ foo: 10, bar: 'a string', baz: ['else'] }))
+    .toEqual({ foo: 10, bar: 'a string' })
+  // Replace merges the replacement values onto the object.
+  expect(pattern.replace({ foo: 10, bar: 'a string', baz: ['else'] },
+    { foo: 20, bar: 'flerb', quux: 100 }))
+    .toEqual({ foo: 20, bar: 'flerb', baz: ['else'], quux: 100 })
+  // The pattern fails if a field is missing from the focus, or its pattern fails.
+  expect(pattern.test({ foo: 20 })).toEqual(false)
+  expect(pattern.test({ foo: 'not a number', bar: 'a string' })).toEqual(false)
+  // `id` or `_` can test for the presence of a field, regardless of the value.
+  expect(dx`{type: ${string}, payload: _}`
+    .test({ type: 'foo', payload: [1, 2, 3] })).toEqual(true)
+  expect(dx`{type: ${string}, payload: _}`
+    .test({ type: 'bar', payload: 42, error: false })).toEqual(true)
+  // Patterns can have optional fields, marked with `?`.
+  expect(dx`{foo: ${number}, bar?: ${string}}`.test({ foo: 123 })).toEqual(true)
+  expect(dx`{foo: ${number}, bar?: ${string}}`
+    .replace({ foo: 123, baz: 789 }, { foo: 456 })).toEqual({ foo: 456, baz: 789 })
+  // The pattern will still fail if the field is present on the focus but its pattern doesn't match.
+  expect(dx`{foo: ${number}, bar?: ${string}}`.test({ foo: 123, bar: 456 })).toEqual(false)
+  expect.comment('TODO: rest patterns, lens/traversal propagation, multiple rests, `...{exact}` ')
+}
+
+function * arrayInit () {
+  yield { match: [], replace: () => [] }
+}
+
+const arrayReducer = (acc, lens, index) => function * (focus) {
+  for (const base of acc(focus)) {
+    for (const inner of lens(focus[index])) {
+      yield {
+        match: base.match.concat([inner.match]),
+        replace: (value) => base.replace(value)
+          .concat([inner.replace(value[index])])
+      }
+    }
+  }
+}
+
+export const arrayShape = (array, rest) => function * (focus) {
+  if (array.length > focus.length) { return }
+  if ((array.length < focus.length) && !rest) { return }
+
+  const head = array.reduce(arrayReducer, arrayInit)
+  if (rest) {
+    for (const h of head(focus)) {
+      for (const r of rest(focus.slice(array.length))) {
+        yield {
+          match: h.match.concat(r.match),
+          replace: (value) => h.replace(value)
+            .concat(r.replace(value.slice(array.length)))
+        }
+      }
+    }
+  } else {
+    yield * head(focus)
+  }
+}
+export function test_array (expect) {
+  const lens = arrayShape([value('foo'), number])
+  const [res] = match(lens, ['foo', 1])
+  expect(res).toEqual(['foo', 1])
+  const out = replace(lens, ['foo', 1], ['bar', 10])
+  expect(out).toEqual(['bar', 10])
+}
+export function test_array_rest (expect) {
+  const lens = arrayShape([value('foo')], arrayOf(number))
+  const [res] = match(lens, ['foo', 1, 2, 3])
+  expect(res).toEqual(['foo', 1, 2, 3])
+}
+
+// ## Lenses
+// These patterns match a _subset_ of a structure, and `replace` will return a structure with only that subset changed.
 
 // `.foo`, `."foo"`,`.${string}`
 // If the focus has the property `foo`, yields `focus.foo`.
@@ -149,46 +330,6 @@ export function test_slice (expect) {
   expect(out).toEqual(['foo', 'flerb', 'quux'])
 }
 
-export const where = (fn) => function * (focus) {
-  if (fn(focus)) {
-    yield { match: focus, replace: (value) => value }
-  }
-}
-export function test_where (expect) {
-  const gt10 = (x) => x > 10
-  const [res] = match(where(gt10), 100)
-  expect(res).toEqual(100,
-    'where.match returns focus on success')
-  expect(test(where(gt10), 5)).toEqual(false)
-  // 'where.match does not return on failure')
-  const out = replace(where(gt10), 100, 200)
-  expect(out).toEqual(200,
-    'where.replace returns value on success')
-  const out2 = replace(where(gt10), 5, 200)
-  expect(out2).toEqual(5,
-    'where.replace returns focus on failure')
-}
-
-// `"foo"`, `1`, `${value}` (NOTE: no `.`)
-// JS Primitives (strings, numbers, bools) succeed if the focus === the value.
-export const value = (val) => where((x) => x === val)
-export function test_value (expect) {
-  const sym = Symbol('a symbol')
-  const [res] = match(value(sym), sym)
-  expect(res).toEqual(sym)
-  const out = replace(value(sym), sym, 'foo')
-  expect(out).toEqual('foo')
-}
-
-export const typeOf = (type) => where((x) => typeof x === type) // eslint-disable-line valid-typeof
-export const instanceOf = (Type) => where((x) => x instanceof Type)
-export const number = typeOf('number')
-export const string = typeOf('string')
-export const bool = typeOf('boolean')
-export const func = typeOf('function')
-export const symbol = typeOf('symbol')
-export const date = where((x) => typeof x.getTime === 'function')
-
 export const regex = (re) => function * (focus) {
   // "fresh" regex on every invocation
   re = new RegExp(re)
@@ -226,6 +367,9 @@ export function test_regex (expect) {
   expect.comment('TODO: reasonable behavior for regex/g.replace')
 }
 
+// ## Traversals
+// These patterns can yield _multiple_ results.
+
 // `*`
 // Yield all values of an array or object. Subsequent patterns will filter these results.
 export function * spread (focus) {
@@ -240,13 +384,13 @@ export function test_spread (expect) {
   const [...res2] = match(spread, { foo: 1, bar: 2, baz: 3 })
   expect(res2).toEqual([1, 2, 3],
     'spread object')
-  const [...out] = exec(spread, [1, 2, 3], (x) => x + 1)
+  const [...out] = updateAll(spread, [1, 2, 3], (x) => x + 1)
   expect(out).toEqual([
     [2, 2, 3],
     [1, 3, 3],
     [1, 2, 4]
   ])
-  const [...out2] = exec(spread, { foo: 1, bar: 2, baz: 3 }, (x) => x + 1)
+  const [...out2] = updateAll(spread, { foo: 1, bar: 2, baz: 3 }, (x) => x + 1)
   expect(out2).toEqual([
     { foo: 2, bar: 2, baz: 3 },
     { foo: 1, bar: 3, baz: 3 },
@@ -287,7 +431,7 @@ export function test_recursive (expect) {
     { baz: 3 },
     3
   ], 'recursive.match returns all items traversed in breadth-first order')
-  const [...out] = exec(recursive, { foo: 1, bar: [2, { baz: 3 }] }, () => 'quux')
+  const [...out] = updateAll(recursive, { foo: 1, bar: [2, { baz: 3 }] }, () => 'quux')
   expect(out).toEqual([
     'quux',
     { foo: 'quux', bar: [2, { baz: 3 }] },
@@ -305,6 +449,23 @@ function defaultReducer (l = { match: [], replace: () => [] }, r) {
     replace: (value) => l.replace(value).concat([r.replace(value)])
   }
 }
+
+// ## Combinators
+// These functions operate on the patterns themselves, and return new patterns.
+// Patterns can be grouped with parentheses. Otherwise, `.foo & .bar .baz | .quux .xyzzy` groups as `(.foo & (.bar .baz)) | (.quux .xyyzy)`.
+
+export const arrayOf = (lens) => function * (focus) {
+  for (const item of focus) {
+    if (!test(lens, item)) { return }
+  }
+  yield * id(focus)
+}
+export function test_arrayOf (expect) {
+  const lens = arrayOf(key('foo'))
+  expect(test(lens, [{ foo: 1 }, { foo: 2 }])).toEqual(true)
+  expect(test(lens, [{ foo: 1 }, { bar: 2 }])).toEqual(false)
+}
+
 export const collect = (x, reducer = defaultReducer) => function * (focus) {
   let collected
   for (const lens of x(focus)) {
@@ -341,9 +502,6 @@ export function test_project (expect) {
   expect(out).toEqual('bar')
 }
 
-// ## Operators
-// Patterns can be grouped with parentheses. Otherwise, `.foo & .bar .baz | .quux .xyzzy` groups as `(.foo & (.bar .baz)) | (.quux .xyyzy)`.
-
 // `${x} | ${y}`
 // Try both patterns on a value. Note that `.match` returns an iterator, and will return _both_ results, if they both succeed; `.replace` will replace the _first_ that succeeds.
 export const alt = (x, y) => function * (focus) {
@@ -366,7 +524,7 @@ export function test_alt (expect) {
   const out2 = replace(lens, { bar: 2, baz: 3 }, 10)
   expect(out2).toEqual({ bar: 10, baz: 3 },
     'alt.replace on second item')
-  const [...out3] = exec(lens, { foo: 1, bar: 2, baz: 3 }, () => 10)
+  const [...out3] = updateAll(lens, { foo: 1, bar: 2, baz: 3 }, () => 10)
   expect(out3).toEqual([
     { foo: 10, bar: 2, baz: 3 },
     { foo: 1, bar: 10, baz: 3 }
@@ -415,106 +573,6 @@ export function test_seq (expect) {
     'seq.replace recursive updates')
 }
 
-// `{foo: ${x}, bar?: ${y} }`
-// Succeeds if focus is an object where _all_ fields match the patterns at the corresponding key. Keys can also be _optional_ -- if the key is present in the focus, it must match; otherwise it is skipped. Replacement propagates _through_ the object's fields.
-function * objectInit (focus) {
-  yield { match: {}, replace: () => focus }
-}
-const entryReducer = (acc, [key, lens, optional = false]) => function * (focus) {
-  if (!hasKey(focus, key) && !optional) { return }
-
-  for (const base of acc(focus)) {
-    for (const inner of lens(focus[key])) {
-      yield {
-        match: {
-          ...base.match,
-          [key]: inner.match
-        },
-        replace: (value) => ({
-          ...base.replace(value),
-          [key]: inner.replace(value[key])
-        })
-      }
-    }
-  }
-}
-
-export const object = (entries) => function * (focus) {
-  if (!Array.isArray(entries)) { entries = Object.entries(entries) }
-  yield * entries.reduce(entryReducer, objectInit)(focus)
-}
-export function test_object (expect) {
-  const lens = object({
-    foo: where((x) => x > 0),
-    bar: where((x) => typeof x === 'string')
-  })
-  const focus = { foo: 10, bar: 'a string', baz: ['else'] }
-  const [res] = match(lens, focus)
-  expect(res).toEqual({ foo: 10, bar: 'a string' })
-  const out = replace(lens, focus, { foo: 20, bar: 'flerb' })
-  expect(out).toEqual({ foo: 20, bar: 'flerb', baz: ['else'] })
-}
-
-function * arrayInit () {
-  yield { match: [], replace: () => [] }
-}
-
-const arrayReducer = (acc, lens, index) => function * (focus) {
-  for (const base of acc(focus)) {
-    for (const inner of lens(focus[index])) {
-      yield {
-        match: base.match.concat([inner.match]),
-        replace: (value) => base.replace(value)
-          .concat([inner.replace(value[index])])
-      }
-    }
-  }
-}
-
-export const array = (array, rest) => function * (focus) {
-  if (array.length > focus.length) { return }
-  if ((array.length < focus.length) && !rest) { return }
-
-  const head = array.reduce(arrayReducer, arrayInit)
-  if (rest) {
-    for (const h of head(focus)) {
-      for (const r of rest(focus.slice(array.length))) {
-        yield {
-          match: h.match.concat(r.match),
-          replace: (value) => h.replace(value)
-            .concat(r.replace(value.slice(array.length)))
-        }
-      }
-    }
-  } else {
-    yield * head(focus)
-  }
-}
-export function test_array (expect) {
-  const lens = array([value('foo'), number])
-  const [res] = match(lens, ['foo', 1])
-  expect(res).toEqual(['foo', 1])
-  const out = replace(lens, ['foo', 1], ['bar', 10])
-  expect(out).toEqual(['bar', 10])
-}
-export function test_array_rest (expect) {
-  const lens = array([value('foo')], arrayOf(number))
-  const [res] = match(lens, ['foo', 1, 2, 3])
-  expect(res).toEqual(['foo', 1, 2, 3])
-}
-
-export const arrayOf = (lens) => function * (focus) {
-  for (const item of focus) {
-    if (!test(lens, item)) { return }
-  }
-  yield * id(focus)
-}
-export function test_arrayOf (expect) {
-  const lens = arrayOf(key('foo'))
-  expect(test(lens, [{ foo: 1 }, { foo: 2 }])).toEqual(true)
-  expect(test(lens, [{ foo: 1 }, { bar: 2 }])).toEqual(false)
-}
-
 function lensesForStructure (value) {
   if (Array.isArray(value)) {
     return value.map((val, i) =>
@@ -524,5 +582,15 @@ function lensesForStructure (value) {
       [key(k), value[k]])
   } else {
     return []
+  }
+}
+
+// does this have to be an _operator_, instead of a generator?
+export const limit = (lens, maxCount = 1) => function * (focus) {
+  let count = 0
+  for (const item of lens(focus)) {
+    if (maxCount <= count) { return }
+    yield item
+    count++
   }
 }
