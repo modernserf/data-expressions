@@ -1,0 +1,1760 @@
+<!doctype html>
+<html >
+<head >
+<title >
+patterns.js
+</title>
+<style >
+
+  body {
+    margin: 0 auto;
+    max-width: 800px;
+  }
+  .test {
+    border: 1px solid #ccc;
+    padding: 1em;
+  }
+  code {
+    display: block;
+    white-space: pre;
+    line-height: 0.7;
+  }
+  .comment code {
+    display: inline-block;
+    background-color: #eee;
+  }
+  section {
+    margin: 1em 0;
+  }
+
+</style>
+</head>
+<body >
+<aside class="comment">
+<h1 id="patterns">Patterns</h1>
+<h2 id="todo-explain-the-pattern-protocol">TODO: explain the pattern protocol</h2>
+<h2 id="glossary-of-terms-used-in-patterns">Glossary of terms used in patterns</h2>
+<ul>
+<li><strong>pattern</strong></li>
+<li><strong>focus</strong></li>
+<li><strong>yields</strong> - Patterns are generators that yield <code>{ match, replace }</code>.</li>
+<li><strong>succeeds</strong> - A pattern &quot;succeeds&quot; if it yields any values.</li>
+</ul>
+
+</aside>
+<details >
+<section class="details-body">
+import { test, match, replace, updateAll } from './operations.js'
+</section>
+</details>
+<aside class="comment">
+<h2 id="basic-patterns">Basic Patterns</h2>
+<h3 id="where">where</h3>
+<p> succeeds if <code>fn(focus)</code> is true, fails if <code>fn(focus)</code> is false.</p>
+
+</aside>
+<section class="export" id="e">
+<code >
+export const where = (fn) => function * (focus) {
+</code>
+<code >
+  if (fn(focus)) {
+</code>
+<code >
+    yield { match: focus, replace: (value) => value }
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_where">
+<code >
+export function test_where (expect, dx) {
+</code>
+<aside class="comment">
+<p> <code>where</code> succeeds if the function returns true, and fails if it returns false.</p>
+
+</aside>
+<code >
+  expect(dx`${where((x) => x > 10)}`.test(100))
+</code>
+<code >
+    .toEqual(true)
+</code>
+<code >
+  expect(dx`${where((x) => x > 10)}`.test(1))
+</code>
+<code >
+    .toEqual(false)
+</code>
+<aside class="comment">
+<p> Matching yields the focus if the function returns true, and nothing if it returns false.</p>
+
+</aside>
+<code >
+  expect([...dx`${where((x) => x > 10)}`.matchAll(100)])
+</code>
+<code >
+    .toEqual([100])
+</code>
+<code >
+  expect([...dx`${where((x) => x > 10)}`.matchAll(1)])
+</code>
+<code >
+    .toEqual([])
+</code>
+<aside class="comment">
+<p> Replace returns the replacement value if the function returns true, and the focus if it returns false.</p>
+
+</aside>
+<code >
+  expect(dx`${where((x) => x > 10)}`.replace(100, 500))
+</code>
+<code >
+    .toEqual(500)
+</code>
+<code >
+  expect(dx`${where((x) => x > 10)}`.replace(1, 500))
+</code>
+<code >
+    .toEqual(1)
+</code>
+<code >
+}
+</code>
+</section>
+<aside class="comment">
+<h3 id="id">id</h3>
+<p> <code>_</code></p>
+<p> Always succeeds. Useful as a placeholder in complex expressions.</p>
+
+</aside>
+<section class="export" id="d">
+<code >
+export const id = where(() => true)
+</code>
+</section>
+<section class="test" id="test_id">
+<code >
+export function test_id (expect, dx) {
+</code>
+<aside class="comment">
+<p> Matching will always return the focus.</p>
+
+</aside>
+<code >
+  expect(dx`_`.match({ foo: 1 })).toEqual({ foo: 1 })
+</code>
+<aside class="comment">
+<p> Replace will always return the replacement value.</p>
+
+</aside>
+<code >
+  expect(dx`_`.replace({ foo: 1 }, { bar: 2 })).toEqual({ bar: 2 })
+</code>
+<code >
+}
+</code>
+</section>
+<aside class="comment">
+<h3 id="fail">fail</h3>
+<p> Always fails. Useful for halting/pruning match results.</p>
+
+</aside>
+<section class="export" id="*">
+<code >
+export function * fail () {}
+</code>
+</section>
+<section class="test" id="test_fail">
+<code >
+export function test_fail (expect) {
+</code>
+<code >
+  expect(test(seq(id, fail), 'foo')).toEqual(false)
+</code>
+<code >
+}
+</code>
+</section>
+<aside class="comment">
+<h3 id="value">value</h3>
+<p> <code>&quot;foo&quot;</code>, <code>1</code>, <code>${primitive value}</code></p>
+<p> Succeed if the focus <code>===</code> the value.</p>
+
+</aside>
+<section class="export" id="e">
+<code >
+export const value = (val) => where((x) => x === val)
+</code>
+</section>
+<section class="test" id="test_value">
+<code >
+export function test_value (expect, dx) {
+</code>
+<aside class="comment">
+<p> double-quoted strings and numbers can be written in the data expression directly.</p>
+
+</aside>
+<code >
+  expect(dx`"foo"`.test('foo')).toEqual(true)
+</code>
+<code >
+  expect(dx`1`.test(1)).toEqual(true)
+</code>
+<aside class="comment">
+<p> Any JS primitives (strings, numbers, bools, symbols) interpolated into the data expression will act as a value pattern.</p>
+
+</aside>
+<code >
+  expect(dx`${1}`.test(1)).toEqual(true)
+</code>
+<code >
+  const sym = Symbol('a symbol')
+</code>
+<code >
+  expect(dx`${sym}`.test(sym)).toEqual(true)
+</code>
+<aside class="comment">
+<p> Complex data structures cannot be directly interpolated (they&#39;re interpreted as other patterns) but they can be &quot;escaped&quot; with <code>value</code> for testing reference equality.</p>
+
+</aside>
+<code >
+  const fn = function () {}
+</code>
+<code >
+  expect(dx`${value(fn)}`.test(fn)).toEqual(true)
+</code>
+<code >
+}
+</code>
+</section>
+<aside class="comment">
+<h3 id="type-patterns">Type patterns</h3>
+<p> Succeeds if the focus has this type.</p>
+
+</aside>
+<section class="export" id="f">
+<code >
+export const typeOf = (type) => where((x) => typeof x === type) // eslint-disable-line valid-typeof
+</code>
+<code >
+export const instanceOf = (Type) => where((x) => x instanceof Type)
+</code>
+<code >
+export const number = typeOf('number')
+</code>
+<code >
+export const string = typeOf('string')
+</code>
+<code >
+export const bool = typeOf('boolean')
+</code>
+<code >
+export const func = typeOf('function')
+</code>
+<code >
+export const symbol = typeOf('symbol')
+</code>
+<code >
+export const object = where((x) => x && typeof x === 'object')
+</code>
+<code >
+export const array = where(Array.isArray)
+</code>
+<code >
+export const date = where((x) => x && typeof x.getTime === 'function')
+</code>
+</section>
+<section class="test" id="test_type_patterns">
+<code >
+export function test_type_patterns (expect, dx) {
+</code>
+<code >
+  expect(dx`${number}`.test(123)).toEqual(true)
+</code>
+<code >
+  expect(dx`${string}`.test('foo')).toEqual(true)
+</code>
+<code >
+  expect(dx`${object}`.test({ foo: 123 })).toEqual(true)
+</code>
+<code >
+  expect(dx`${object}`.test(null)).toEqual(false)
+</code>
+<code >
+}
+</code>
+</section>
+<aside class="comment">
+<h2 id="structure-patterns">Structure patterns</h2>
+<p> These patterns match the shapes of structures.
+ <code>{foo: ${x}, bar?: ${y}, ...${z} }</code>
+ Succeeds if focus is an object where <em>all</em> fields match the patterns at the corresponding key. Keys can also be <em>optional</em> -- if the key is present in the focus, it must match; otherwise it is skipped. Replacement propagates <em>through</em> the object&#39;s fields.</p>
+
+</aside>
+<section class="export" id="e">
+<code >
+export const objectShape = (entries) => {
+</code>
+<code >
+  if (!entries.some((e) => e.type === 'RestEntry')) {
+</code>
+<code >
+    entries = entries.concat([objectInit])
+</code>
+<code >
+  }
+</code>
+<code >
+  const entryReducer = (acc, entry) => function * (focus) {
+</code>
+<code >
+    if (entry.type === 'RestEntry') {
+</code>
+<code >
+      yield * entry.value(focus)
+</code>
+<code >
+      return
+</code>
+<code >
+    }
+</code>
+<code >
+    const { key, value: pattern, optional } = entry
+</code>
+<code >
+    if (!hasKey(focus, key)) {
+</code>
+<code >
+      if (optional) { yield * acc(focus) }
+</code>
+<code >
+      return
+</code>
+<code >
+    }
+</code>
+<code >
+    const { [key]: keyFocus, ...restFocus } = focus
+</code>
+<code >
+    for (const outer of acc(restFocus)) {
+</code>
+<code >
+      for (const inner of pattern(keyFocus)) {
+</code>
+<code >
+        yield {
+</code>
+<code >
+          match: { ...outer.match, [key]: inner.match },
+</code>
+<code >
+          replace: (value) => ({
+</code>
+<code >
+            ...outer.replace(value),
+</code>
+<code >
+            [key]: inner.replace(value[key])
+</code>
+<code >
+          })
+</code>
+<code >
+        }
+</code>
+<code >
+      }
+</code>
+<code >
+    }
+</code>
+<code >
+  }
+</code>
+<code >
+  return entries.reduceRight(entryReducer)
+</code>
+<code >
+}
+</code>
+</section>
+<details >
+<section class="details-body">
+const objectInit = (focus) => [{ match: {}, replace: (value) => ({ ...focus, ...value }) }]
+</section>
+</details>
+<section class="test" id="test_objectShape">
+<code >
+export function test_objectShape (expect, dx) {
+</code>
+<aside class="comment">
+<p> The pattern succeeds if all fields succeed.</p>
+
+</aside>
+<code >
+  const pattern = dx`{foo: ${number}, bar: ${string}}`
+</code>
+<code >
+  expect(pattern.test({ foo: 10, bar: 'a string', baz: ['else'] })).toEqual(true)
+</code>
+<aside class="comment">
+<p> Match returns only the matched fields.</p>
+
+</aside>
+<code >
+  expect(pattern.match({ foo: 10, bar: 'a string', baz: ['else'] }))
+</code>
+<code >
+    .toEqual({ foo: 10, bar: 'a string' })
+</code>
+<aside class="comment">
+<p> Replace merges the replacement values onto the object.</p>
+
+</aside>
+<code >
+  expect(pattern.replace({ foo: 10, bar: 'a string', baz: ['else'] },
+</code>
+<code >
+    { foo: 20, bar: 'flerb', quux: 100 }))
+</code>
+<code >
+    .toEqual({ foo: 20, bar: 'flerb', baz: ['else'], quux: 100 })
+</code>
+<aside class="comment">
+<p> The pattern fails if a field is missing from the focus, or its pattern fails.</p>
+
+</aside>
+<code >
+  expect(pattern.test({ foo: 20 })).toEqual(false)
+</code>
+<code >
+  expect(pattern.test({ foo: 'not a number', bar: 'a string' })).toEqual(false)
+</code>
+<aside class="comment">
+<p> <code>id</code> or <code>_</code> can test for the presence of a field, regardless of the value.</p>
+
+</aside>
+<code >
+  expect(dx`{type: ${string}, payload: _}`
+</code>
+<code >
+    .test({ type: 'foo', payload: [1, 2, 3] })).toEqual(true)
+</code>
+<code >
+  expect(dx`{type: ${string}, payload: _}`
+</code>
+<code >
+    .test({ type: 'bar', payload: 42, error: false })).toEqual(true)
+</code>
+<aside class="comment">
+<p> Patterns can have optional fields, marked with <code>?</code>.</p>
+
+</aside>
+<code >
+  expect(dx`{foo: ${number}, bar?: ${string}}`.test({ foo: 123 })).toEqual(true)
+</code>
+<code >
+  expect(dx`{foo: ${number}, bar?: ${string}}`
+</code>
+<code >
+    .replace({ foo: 123, baz: 789 }, { foo: 456 })).toEqual({ foo: 456, baz: 789 })
+</code>
+<aside class="comment">
+<p> The pattern will still fail if the field is present on the focus but its pattern doesn&#39;t match.</p>
+
+</aside>
+<code >
+  expect(dx`{foo: ${number}, bar?: ${string}}`.test({ foo: 123, bar: 456 })).toEqual(false)
+</code>
+<code >
+  expect.comment('TODO: rest patterns, lens/traversal propagation, multiple rests, `...{exact}` ')
+</code>
+<code >
+}
+</code>
+</section>
+<details >
+<section class="details-body">
+function * arrayInit () {
+<code >
+  yield { match: [], replace: () => [] }
+</code>
+<code >
+}
+</code>
+<code >
+const arrayReducer = (acc, lens, index) => function * (focus) {
+</code>
+<code >
+  for (const base of acc(focus)) {
+</code>
+<code >
+    for (const inner of lens(focus[index])) {
+</code>
+<code >
+      yield {
+</code>
+<code >
+        match: base.match.concat([inner.match]),
+</code>
+<code >
+        replace: (value) => base.replace(value)
+</code>
+<code >
+          .concat([inner.replace(value[index])])
+</code>
+<code >
+      }
+</code>
+<code >
+    }
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+</details>
+<section class="export" id="e">
+<code >
+export const arrayShape = (array, rest) => function * (focus) {
+</code>
+<code >
+  if (array.length > focus.length) { return }
+</code>
+<code >
+  if ((array.length < focus.length) && !rest) { return }
+</code>
+<code >
+  const head = array.reduce(arrayReducer, arrayInit)
+</code>
+<code >
+  if (rest) {
+</code>
+<code >
+    for (const h of head(focus)) {
+</code>
+<code >
+      for (const r of rest(focus.slice(array.length))) {
+</code>
+<code >
+        yield {
+</code>
+<code >
+          match: h.match.concat(r.match),
+</code>
+<code >
+          replace: (value) => h.replace(value)
+</code>
+<code >
+            .concat(r.replace(value.slice(array.length)))
+</code>
+<code >
+        }
+</code>
+<code >
+      }
+</code>
+<code >
+    }
+</code>
+<code >
+  } else {
+</code>
+<code >
+    yield * head(focus)
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_array">
+<code >
+export function test_array (expect) {
+</code>
+<code >
+  const lens = arrayShape([value('foo'), number])
+</code>
+<code >
+  const [res] = match(lens, ['foo', 1])
+</code>
+<code >
+  expect(res).toEqual(['foo', 1])
+</code>
+<code >
+  const out = replace(lens, ['foo', 1], ['bar', 10])
+</code>
+<code >
+  expect(out).toEqual(['bar', 10])
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_array_rest">
+<code >
+export function test_array_rest (expect) {
+</code>
+<code >
+  const lens = arrayShape([value('foo')], arrayOf(number))
+</code>
+<code >
+  const [res] = match(lens, ['foo', 1, 2, 3])
+</code>
+<code >
+  expect(res).toEqual(['foo', 1, 2, 3])
+</code>
+<code >
+}
+</code>
+</section>
+<aside class="comment">
+<h2 id="lenses">Lenses</h2>
+<p> These patterns match a <em>subset</em> of a structure, and <code>replace</code> will return a structure with only that subset changed.
+ <code>.foo</code>, <code>.&quot;foo&quot;</code>,<code>.${string}</code>
+ If the focus has the property <code>foo</code>, yields <code>focus.foo</code>.</p>
+
+</aside>
+<section class="export" id="y">
+<code >
+export const key = (key) => function * (focus) {
+</code>
+<code >
+  if (hasKey(focus, key)) {
+</code>
+<code >
+    yield {
+</code>
+<code >
+      match: focus[key],
+</code>
+<code >
+      replace: (value) => ({ ...focus, [key]: value })
+</code>
+<code >
+    }
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_key">
+<code >
+export function test_key (expect) {
+</code>
+<code >
+  const [res] = match(key('foo'), { foo: { bar: 1 } })
+</code>
+<code >
+  expect(res).toEqual({ bar: 1 },
+</code>
+<code >
+    'key.match returns the field at key')
+</code>
+<code >
+  const out = replace(key('foo'), { foo: { bar: 1 } }, { quux: 2 })
+</code>
+<code >
+  expect(out).toEqual({ foo: { quux: 2 } },
+</code>
+<code >
+    'key.replace returns the object with key updated')
+</code>
+<code >
+  expect(test(key('baz')), { foo: { bar: 1 } }).toEqual(false)
+</code>
+<aside class="comment">
+<p> &#39;key.test fails if key not present&#39;)</p>
+
+</aside>
+<code >
+}
+</code>
+</section>
+<details >
+<section class="details-body">
+function hasKey (focus, key) {
+<code >
+  if (!focus || typeof focus !== 'object') { return false }
+</code>
+<code >
+  return key in focus
+</code>
+<code >
+}
+</code>
+</section>
+</details>
+<aside class="comment">
+<p> <code>.foo?</code>, <code>.&quot;foo&quot;?</code>
+ A key followed by <code>?</code> will always succeed. If that key or index is not present in the object, <code>.test</code> will still return <code>true</code>, <code>.match</code> will yield <code>undefined</code>, and <code>.replace</code> will insert the value to the structure at that key or index.</p>
+
+</aside>
+<details >
+<section class="details-body">
+key.optional = (key) => function * (focus) {
+<code >
+  yield {
+</code>
+<code >
+    match: focus[key],
+</code>
+<code >
+    replace: (value) => ({ ...focus, [key]: value })
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+</details>
+<section class="test" id="test_key_optional">
+<code >
+export function test_key_optional (expect) {
+</code>
+<code >
+  const out = replace(key.optional('baz'), { foo: { bar: 1 } }, { quux: 2 })
+</code>
+<code >
+  expect(out).toEqual({ foo: { bar: 1 }, baz: { quux: 2 } },
+</code>
+<code >
+    'key.optional.replace inserts values at a new key')
+</code>
+<code >
+}
+</code>
+</section>
+<aside class="comment">
+<p> <code>.1</code> , <code>.${number}</code>
+ Use the value at index <code>1</code> in an array. You can also use values from the <em>end</em> of the array, using negative indexes.</p>
+
+</aside>
+<section class="export" id="x">
+<code >
+export const index = (i) => function * (focus) {
+</code>
+<aside class="comment">
+<p> allow indexing from end</p>
+
+</aside>
+<code >
+  if (i < 0) { i = focus.length + i }
+</code>
+<code >
+  if (i in focus) {
+</code>
+<code >
+    yield {
+</code>
+<code >
+      match: focus[i],
+</code>
+<code >
+      replace: (value) => {
+</code>
+<code >
+        const copy = focus.slice(0)
+</code>
+<code >
+        copy[i] = value
+</code>
+<code >
+        return copy
+</code>
+<code >
+      }
+</code>
+<code >
+    }
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_index">
+<code >
+export function test_index (expect) {
+</code>
+<code >
+  const [res] = match(index(1), ['foo', 'bar', 'baz'])
+</code>
+<code >
+  expect(res).toEqual('bar',
+</code>
+<code >
+    'index.match gets array items')
+</code>
+<code >
+  const [res2] = match(index(-1), ['foo', 'bar', 'baz'])
+</code>
+<code >
+  expect(res2).toEqual('baz',
+</code>
+<code >
+    'index.match gets item from end with negative index')
+</code>
+<code >
+  expect(test(index(5), ['foo', 'bar', 'baz'])).toEqual(false)
+</code>
+<aside class="comment">
+<p> &#39;index.match does not return when out of range&#39;)</p>
+
+</aside>
+<code >
+  const out = replace(index(1), ['foo', 'bar', 'baz'], 'quux')
+</code>
+<code >
+  expect(out).toEqual(['foo', 'quux', 'baz'],
+</code>
+<code >
+    'index.replace updates array items')
+</code>
+<code >
+  const out2 = replace(index(-1), ['foo', 'bar', 'baz'], 'quux')
+</code>
+<code >
+  expect(out2).toEqual(['foo', 'bar', 'quux'],
+</code>
+<code >
+    'index.replace works with negative index')
+</code>
+<code >
+  const out3 = replace(index(5), ['foo', 'bar', 'baz'], 'quux')
+</code>
+<code >
+  expect(out3).toEqual(['foo', 'bar', 'baz'],
+</code>
+<code >
+    'index.replace does not beyond end of list')
+</code>
+<code >
+}
+</code>
+</section>
+<aside class="comment">
+<p> <code>.1?</code> , <code>.${number}?</code>
+ As with keys, an index followed by <code>?</code> will always succeed. If that  index is not present in the array, <code>.test</code> will still return <code>true</code>, <code>.match</code> will yield <code>undefined</code>, and <code>.replace</code> will fill the array with <code>undefined</code> to that index.</p>
+
+</aside>
+<details >
+<section class="details-body">
+index.optional = (i) => function * (focus) {
+<code >
+  if (i < 0) { i = focus.length + i }
+</code>
+<code >
+  yield {
+</code>
+<code >
+    match: focus[i],
+</code>
+<code >
+    replace: (value) => {
+</code>
+<code >
+      const copy = focus.slice(0)
+</code>
+<code >
+      copy[i] = value
+</code>
+<code >
+      return Array.from(copy)
+</code>
+<code >
+    }
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+</details>
+<section class="test" id="test_index_optional">
+<code >
+export function test_index_optional (expect) {
+</code>
+<code >
+  const [...res] = match(index.optional(10), ['foo', 'bar', 'baz'])
+</code>
+<code >
+  expect(res).toEqual([undefined],
+</code>
+<code >
+    'index.optional.match always yields, even if result is undefined')
+</code>
+<code >
+  const out = replace(index.optional(5), ['foo', 'bar', 'baz'], 'quux')
+</code>
+<code >
+  expect(out).toEqual(['foo', 'bar', 'baz', undefined, undefined, 'quux'],
+</code>
+<code >
+    'index.optional.replace adds past the end of a list')
+</code>
+<code >
+}
+</code>
+</section>
+<aside class="comment">
+<p> <code>.[1:3]</code>, <code>.[${from}:${to}]</code>
+ Yields the slice of the array or string.</p>
+
+</aside>
+<section class="export" id="e">
+<code >
+export const slice = (start, end) => function * (focus) {
+</code>
+<code >
+  yield {
+</code>
+<code >
+    match: focus.slice(start, end),
+</code>
+<code >
+    replace: (value) => [
+</code>
+<code >
+      ...focus.slice(0, start),
+</code>
+<code >
+      ...value,
+</code>
+<code >
+      ...focus.slice(end)
+</code>
+<code >
+    ]
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_slice">
+<code >
+export function test_slice (expect) {
+</code>
+<code >
+  const [res] = match(slice(1), ['foo', 'bar', 'baz'])
+</code>
+<code >
+  expect(res).toEqual(['bar', 'baz'])
+</code>
+<code >
+  const out = replace(slice(1, 3), ['foo', 'bar', 'baz', 'quux'], ['flerb'])
+</code>
+<code >
+  expect(out).toEqual(['foo', 'flerb', 'quux'])
+</code>
+<code >
+}
+</code>
+</section>
+<section class="export" id="x">
+<code >
+export const regex = (re) => function * (focus) {
+</code>
+<aside class="comment">
+<p> &quot;fresh&quot; regex on every invocation</p>
+
+</aside>
+<code >
+  re = new RegExp(re)
+</code>
+<code >
+  let match = re.exec(focus)
+</code>
+<code >
+  if (!match) { return }
+</code>
+<code >
+  yield {
+</code>
+<code >
+    match: match[0],
+</code>
+<code >
+    replace: (val) => focus.replace(new RegExp(re), val)
+</code>
+<code >
+  }
+</code>
+<aside class="comment">
+<p> handle stateful regexes</p>
+
+</aside>
+<code >
+  if (re.global || re.sticky) {
+</code>
+<code >
+    while (match = re.exec(focus)) { // eslint-disable-line no-cond-assign
+</code>
+<code >
+      let lastIndex = match.lastIndex
+</code>
+<code >
+      yield {
+</code>
+<code >
+        match: match[0],
+</code>
+<code >
+        replace: (val) => {
+</code>
+<aside class="comment">
+<p> apply the replacement at match position,
+ but don&#39;t mutate match regex</p>
+
+</aside>
+<code >
+          const reCopy = new RegExp(re)
+</code>
+<code >
+          reCopy.lastIndex = lastIndex
+</code>
+<code >
+          return focus.replace(reCopy, val)
+</code>
+<code >
+        }
+</code>
+<code >
+      }
+</code>
+<code >
+    }
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_regex">
+<code >
+export function test_regex (expect) {
+</code>
+<code >
+  const [res] = match(regex(/f../), 'foobar')
+</code>
+<code >
+  expect(res).toEqual('foo')
+</code>
+<code >
+  const out = replace(regex(/f../), 'foobar', 'baz')
+</code>
+<code >
+  expect(out).toEqual('bazbar')
+</code>
+<code >
+  const [...res2] = match(regex(/h./g), 'ha ho he hi')
+</code>
+<code >
+  expect(res2).toEqual(['ha', 'ho', 'he', 'hi'])
+</code>
+<code >
+  expect.comment('TODO: reasonable behavior for regex/g.replace')
+</code>
+<code >
+}
+</code>
+</section>
+<aside class="comment">
+<h2 id="traversals">Traversals</h2>
+<p> These patterns can yield <em>multiple</em> results.
+ <code>*</code>
+ Yield all values of an array or object. Subsequent patterns will filter these results.</p>
+
+</aside>
+<section class="export" id="*">
+<code >
+export function * spread (focus) {
+</code>
+<code >
+  for (const [lens] of lensesForStructure(focus)) {
+</code>
+<code >
+    yield * lens(focus)
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_spread">
+<code >
+export function test_spread (expect) {
+</code>
+<code >
+  const [...res] = match(spread, [1, 2, 3])
+</code>
+<code >
+  expect(res).toEqual([1, 2, 3],
+</code>
+<code >
+    'spread array')
+</code>
+<code >
+  const [...res2] = match(spread, { foo: 1, bar: 2, baz: 3 })
+</code>
+<code >
+  expect(res2).toEqual([1, 2, 3],
+</code>
+<code >
+    'spread object')
+</code>
+<code >
+  const [...out] = updateAll(spread, [1, 2, 3], (x) => x + 1)
+</code>
+<code >
+  expect(out).toEqual([
+</code>
+<code >
+    [2, 2, 3],
+</code>
+<code >
+    [1, 3, 3],
+</code>
+<code >
+    [1, 2, 4]
+</code>
+<code >
+  ])
+</code>
+<code >
+  const [...out2] = updateAll(spread, { foo: 1, bar: 2, baz: 3 }, (x) => x + 1)
+</code>
+<code >
+  expect(out2).toEqual([
+</code>
+<code >
+    { foo: 2, bar: 2, baz: 3 },
+</code>
+<code >
+    { foo: 1, bar: 3, baz: 3 },
+</code>
+<code >
+    { foo: 1, bar: 2, baz: 4 }
+</code>
+<code >
+  ])
+</code>
+<code >
+}
+</code>
+</section>
+<aside class="comment">
+<p> <code>**</code>
+ Yield all values of an array or object <em>recursively</em>, including itself, in breadth-first order. This <em>can</em> operate on circular data structures, but will ignore repeated nodes.
+ TODO: how should <code>replace</code> work on a circular structure?</p>
+
+</aside>
+<details >
+<section class="details-body">
+function * _recursive (focus, maxVisits) {
+<code >
+  const visited = new Map()
+</code>
+<code >
+  const q = [[id, focus]]
+</code>
+<code >
+  for (const [lens, node] of q) {
+</code>
+<aside class="comment">
+<p> prevent infinite recursion</p>
+
+</aside>
+<code >
+    const visitCount = visited.get(node) || 0
+</code>
+<code >
+    if (visitCount >= maxVisits) { continue }
+</code>
+<code >
+    visited.set(node, visitCount + 1)
+</code>
+<code >
+    yield * lens(focus)
+</code>
+<aside class="comment">
+<p> yes, you can modify an array while you&#39;re iterating over it</p>
+
+</aside>
+<code >
+    for (const [childLens, childNode] of lensesForStructure(node)) {
+</code>
+<code >
+      q.push([seq(lens, childLens), childNode])
+</code>
+<code >
+    }
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+</details>
+<section class="export" id="e">
+<code >
+export const recursive = (focus) => _recursive(focus, 1)
+</code>
+</section>
+<details >
+<section class="details-body">
+recursive.maxVisits = (maxVisits) =>
+<code >
+  (focus) => _recursive(focus, maxVisits)
+</code>
+</section>
+</details>
+<section class="test" id="test_recursive">
+<code >
+export function test_recursive (expect) {
+</code>
+<code >
+  const [...matches] = match(recursive, { foo: 1, bar: [2, { baz: 3 }] })
+</code>
+<code >
+  expect(matches).toEqual([
+</code>
+<code >
+    { foo: 1, bar: [2, { baz: 3 }] },
+</code>
+<code >
+    1,
+</code>
+<code >
+    [2, { baz: 3 }],
+</code>
+<code >
+    2,
+</code>
+<code >
+    { baz: 3 },
+</code>
+<code >
+    3
+</code>
+<code >
+  ], 'recursive.match returns all items traversed in breadth-first order')
+</code>
+<code >
+  const [...out] = updateAll(recursive, { foo: 1, bar: [2, { baz: 3 }] }, () => 'quux')
+</code>
+<code >
+  expect(out).toEqual([
+</code>
+<code >
+    'quux',
+</code>
+<code >
+    { foo: 'quux', bar: [2, { baz: 3 }] },
+</code>
+<code >
+    { foo: 1, bar: 'quux' },
+</code>
+<code >
+    { foo: 1, bar: ['quux', { baz: 3 }] },
+</code>
+<code >
+    { foo: 1, bar: [2, 'quux'] },
+</code>
+<code >
+    { foo: 1, bar: [2, { baz: 'quux' }] }
+</code>
+<code >
+  ], 'recursive.replace returns multiple items')
+</code>
+<code >
+  expect.comment('TODO: circular structures')
+</code>
+<code >
+}
+</code>
+</section>
+<details >
+<section class="details-body">
+function defaultReducer (l = { match: [], replace: () => [] }, r) {
+<code >
+  return {
+</code>
+<code >
+    match: l.match.concat([r.match]),
+</code>
+<code >
+    replace: (value) => l.replace(value).concat([r.replace(value)])
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+</details>
+<aside class="comment">
+<h2 id="combinators">Combinators</h2>
+<p> These functions operate on the patterns themselves, and return new patterns.
+ Patterns can be grouped with parentheses. Otherwise, <code>.foo &amp; .bar .baz | .quux .xyzzy</code> groups as <code>(.foo &amp; (.bar .baz)) | (.quux .xyyzy)</code>.</p>
+
+</aside>
+<section class="export" id="f">
+<code >
+export const arrayOf = (lens) => function * (focus) {
+</code>
+<code >
+  for (const item of focus) {
+</code>
+<code >
+    if (!test(lens, item)) { return }
+</code>
+<code >
+  }
+</code>
+<code >
+  yield * id(focus)
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_arrayOf">
+<code >
+export function test_arrayOf (expect) {
+</code>
+<code >
+  const lens = arrayOf(key('foo'))
+</code>
+<code >
+  expect(test(lens, [{ foo: 1 }, { foo: 2 }])).toEqual(true)
+</code>
+<code >
+  expect(test(lens, [{ foo: 1 }, { bar: 2 }])).toEqual(false)
+</code>
+<code >
+}
+</code>
+</section>
+<section class="export" id="t">
+<code >
+export const collect = (x, reducer = defaultReducer) => function * (focus) {
+</code>
+<code >
+  let collected
+</code>
+<code >
+  for (const lens of x(focus)) {
+</code>
+<code >
+    collected = reducer(collected, lens)
+</code>
+<code >
+  }
+</code>
+<code >
+  yield collected
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_collect">
+<code >
+export function test_collect (expect) {
+</code>
+<code >
+  const lens = collect(alt(key('foo'), key('bar')))
+</code>
+<code >
+  const [res] = match(lens, { foo: 1, bar: 2, baz: 3 })
+</code>
+<code >
+  expect(res).toEqual([1, 2],
+</code>
+<code >
+    'collect.match returns an array of results')
+</code>
+<code >
+  const [res2] = match(lens, { foo: 1, quux: 2 })
+</code>
+<code >
+  expect(res2).toEqual([1],
+</code>
+<code >
+    'collect.match propagates failure')
+</code>
+<code >
+  const out = replace(lens, { foo: 1, bar: 2, baz: 3 }, 10)
+</code>
+<code >
+  expect(out).toEqual([
+</code>
+<code >
+    { foo: 10, bar: 2, baz: 3 },
+</code>
+<code >
+    { foo: 1, bar: 10, baz: 3 }
+</code>
+<code >
+  ], 'collect.replace returns an array of results')
+</code>
+<code >
+}
+</code>
+</section>
+<section class="export" id="t">
+<code >
+export const project = (fn) => function * (focus) {
+</code>
+<code >
+  yield {
+</code>
+<code >
+    match: fn(focus),
+</code>
+<code >
+    replace: (value) => value
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_project">
+<code >
+export function test_project (expect) {
+</code>
+<code >
+  const lens = project((x) => x.toUpperCase())
+</code>
+<code >
+  const [res] = match(lens, 'foo')
+</code>
+<code >
+  expect(res).toEqual('FOO')
+</code>
+<code >
+  const out = replace(lens, 'foo', 'bar')
+</code>
+<code >
+  expect(out).toEqual('bar')
+</code>
+<code >
+}
+</code>
+</section>
+<aside class="comment">
+<p> <code>${x} | ${y}</code>
+ Try both patterns on a value. Note that <code>.match</code> returns an iterator, and will return <em>both</em> results, if they both succeed; <code>.replace</code> will replace the <em>first</em> that succeeds.</p>
+
+</aside>
+<section class="export" id="t">
+<code >
+export const alt = (x, y) => function * (focus) {
+</code>
+<code >
+  yield * x(focus)
+</code>
+<code >
+  yield * y(focus)
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_alt">
+<code >
+export function test_alt (expect) {
+</code>
+<code >
+  const lens = alt(key('foo'), key('bar'))
+</code>
+<code >
+  const [res] = match(lens, { foo: 1, baz: 3 })
+</code>
+<code >
+  expect(res).toEqual(1,
+</code>
+<code >
+    'alt.match returns first on success')
+</code>
+<code >
+  const [res2] = match(lens, { bar: 2, baz: 3 })
+</code>
+<code >
+  expect(res2).toEqual(2,
+</code>
+<code >
+    'alt.match returns second if first fails')
+</code>
+<code >
+  expect(test(lens, { baz: 3 })).toEqual(false)
+</code>
+<aside class="comment">
+<p> &#39;alt.match fails if both fail&#39;)</p>
+
+</aside>
+<code >
+  const out = replace(lens, { foo: 1, baz: 3 }, 10)
+</code>
+<code >
+  expect(out).toEqual({ foo: 10, baz: 3 },
+</code>
+<code >
+    'alt.replace on first item')
+</code>
+<code >
+  const out2 = replace(lens, { bar: 2, baz: 3 }, 10)
+</code>
+<code >
+  expect(out2).toEqual({ bar: 10, baz: 3 },
+</code>
+<code >
+    'alt.replace on second item')
+</code>
+<code >
+  const [...out3] = updateAll(lens, { foo: 1, bar: 2, baz: 3 }, () => 10)
+</code>
+<code >
+  expect(out3).toEqual([
+</code>
+<code >
+    { foo: 10, bar: 2, baz: 3 },
+</code>
+<code >
+    { foo: 1, bar: 10, baz: 3 }
+</code>
+<code >
+  ], 'alt.replace returns multiple items on success')
+</code>
+<code >
+}
+</code>
+</section>
+<aside class="comment">
+<p> <code>${x} &amp; ${y}</code>
+ If the left pattern succeeds, try the right pattern on the focus.</p>
+
+</aside>
+<section class="export" id="d">
+<code >
+export const and = (x, y) => function * (focus) {
+</code>
+<code >
+  for (const _ of x(focus)) {
+</code>
+<code >
+    yield * y(focus)
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_and">
+<code >
+export function test_and (expect) {
+</code>
+<code >
+  const lens = and(key('foo'), key('bar'))
+</code>
+<code >
+  const [res] = match(lens, { foo: 1, bar: 2 })
+</code>
+<code >
+  expect(res).toEqual(2)
+</code>
+<code >
+  expect(test(lens, { bar: 2, quux: 3 })).toEqual(false)
+</code>
+<code >
+  const out = replace(lens, { foo: 1, bar: 2 }, 4)
+</code>
+<code >
+  expect(out).toEqual({ foo: 1, bar: 4 })
+</code>
+<code >
+}
+</code>
+</section>
+<aside class="comment">
+<p> <code>.foo.bar</code> , <code>.foo .bar</code>
+ You can chain sequences of patterns. Whitespace between patterns is optional.</p>
+
+</aside>
+<section class="export" id="q">
+<code >
+export const seq = (x, y) => function * (focus) {
+</code>
+<code >
+  for (const outer of x(focus)) {
+</code>
+<code >
+    for (const inner of y(outer.match)) {
+</code>
+<code >
+      yield {
+</code>
+<code >
+        match: inner.match,
+</code>
+<code >
+        replace: (value) => outer.replace(inner.replace(value))
+</code>
+<code >
+      }
+</code>
+<code >
+    }
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_seq">
+<code >
+export function test_seq (expect) {
+</code>
+<code >
+  const lens = seq(key('foo'), key('bar'))
+</code>
+<code >
+  const [res] = match(lens, { foo: { bar: 1 } })
+</code>
+<code >
+  expect(res).toEqual(1,
+</code>
+<code >
+    'seq.match traverses structures')
+</code>
+<code >
+  const out = replace(lens, { foo: { bar: 1 } }, 2)
+</code>
+<code >
+  expect(out).toEqual({ foo: { bar: 2 } },
+</code>
+<code >
+    'seq.replace traverses structures')
+</code>
+<code >
+  const lens2 = seq(recursive, key('bar'))
+</code>
+<code >
+  const out2 = replace(lens2, { foo: { quux: { flerb: { bar: 1 } } } }, 2)
+</code>
+<code >
+  expect(out2).toEqual({ foo: { quux: { flerb: { bar: 2 } } } },
+</code>
+<code >
+    'seq.replace recursive updates')
+</code>
+<code >
+}
+</code>
+</section>
+<details >
+<section class="details-body">
+function lensesForStructure (value) {
+<code >
+  if (Array.isArray(value)) {
+</code>
+<code >
+    return value.map((val, i) =>
+</code>
+<code >
+      [index(i), val])
+</code>
+<code >
+  } else if (value && typeof value === 'object') {
+</code>
+<code >
+    return Object.keys(value).map((k) =>
+</code>
+<code >
+      [key(k), value[k]])
+</code>
+<code >
+  } else {
+</code>
+<code >
+    return []
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+</details>
+<aside class="comment">
+<p> does this have to be an <em>operator</em>, instead of a generator?</p>
+
+</aside>
+<section class="export" id="t">
+<code >
+export const limit = (lens, maxCount = 1) => function * (focus) {
+</code>
+<code >
+  let count = 0
+</code>
+<code >
+  for (const item of lens(focus)) {
+</code>
+<code >
+    if (maxCount <= count) { return }
+</code>
+<code >
+    yield item
+</code>
+<code >
+    count++
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+</body>
+</html>

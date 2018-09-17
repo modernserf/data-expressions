@@ -7,17 +7,16 @@
     "lint": "eslint .",
     "test": "npm run build:test && tape src/test.build.js | faucet",
     "test:docs": "npm run build:docs && open 'http://localhost:8080/' && http-server ./docs",
-    "build:docs": "docco src/*.js",
+    "build:docs": "node config/doc.js",
     "build:cjs": "rollup src/index.js -o index.build.js -f cjs",
     "build:test": "rollup src/test.js -o src/test.build.js -f cjs",
     "build:parser": "nearleyc src/grammar.ne -o src/grammar.build.js",
     "watch:test": "watch 'npm test' ./src",
-    "watch:docs": "open 'http://localhost:8080/' && watch 'npm run build:docs' ./src & http-server ./docs"
+    "watch:docs": "open 'http://localhost:8080/' && watch 'npm run build:docs' ./config & http-server ./docs"
   },
   "author": "Justin Falcone <justin@justinfalcone.com>",
   "license": "ISC",
   "devDependencies": {
-    "docco": "^0.7.0",
     "eslint": "^5.5.0",
     "eslint-config-standard": "^12.0.0",
     "eslint-plugin-import": "^2.14.0",

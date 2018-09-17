@@ -1,0 +1,474 @@
+<!doctype html>
+<html >
+<head >
+<title >
+parser.js
+</title>
+<style >
+
+  body {
+    margin: 0 auto;
+    max-width: 800px;
+  }
+  .test {
+    border: 1px solid #ccc;
+    padding: 1em;
+  }
+  code {
+    display: block;
+    white-space: pre;
+    line-height: 0.7;
+  }
+  .comment code {
+    display: inline-block;
+    background-color: #eee;
+  }
+  section {
+    margin: 1em 0;
+  }
+
+</style>
+</head>
+<body >
+<details >
+<section class="details-body">
+import grammar from './grammar.build.js'
+<code >
+import { key as keyPattern, id, index, slice, value, arrayShape, objectShape, regex, seq, alt, and, spread, recursive } from './patterns.js'
+</code>
+<code >
+import { decoratePattern } from './operations.js'
+</code>
+<code >
+const { Parser, Grammar } = require('nearley')
+</code>
+</section>
+</details>
+<section class="export" id="e">
+<code >
+export function parse (strs, items) {
+</code>
+<code >
+  const parser = new Parser(Grammar.fromCompiled(grammar))
+</code>
+<code >
+  for (let i = 0; i < strs.length; i++) {
+</code>
+<code >
+    parser.feed(strs[i])
+</code>
+<code >
+    if (items.length > i) { parser.feed(`<${i}>`) }
+</code>
+<code >
+  }
+</code>
+<code >
+  const { results } = parser
+</code>
+<code >
+  if (results.length !== 1) {
+</code>
+<code >
+    console.error(results)
+</code>
+<code >
+    throw new Error('Parsing failed')
+</code>
+<code >
+  }
+</code>
+<code >
+  return results[0]
+</code>
+<code >
+}
+</code>
+</section>
+<details >
+<section class="details-body">
+function getKeyVal (node, items) {
+<code >
+  switch (node.type) {
+</code>
+<code >
+    case 'dqstring':
+</code>
+<code >
+    case 'ident':
+</code>
+<code >
+    case 'int':
+</code>
+<code >
+      return node.value
+</code>
+<code >
+    case 'placeholder':
+</code>
+<code >
+      const pvalue = items[node.value]
+</code>
+<code >
+      if (['string', 'number'].includes(typeof pvalue)) {
+</code>
+<code >
+        return pvalue
+</code>
+<code >
+      }
+</code>
+<code >
+  }
+</code>
+<code >
+  throw new Error('Invalid key type')
+</code>
+<code >
+}
+</code>
+<code >
+const compileEntry = (items) => ({ type, key, value, optional }) => {
+</code>
+<code >
+  switch (type) {
+</code>
+<code >
+    case 'Entry':
+</code>
+<code >
+      return { type: 'Entry', key: getKeyVal(key, items), value: compile(value, items), optional }
+</code>
+<code >
+    case 'ArrEntry':
+</code>
+<code >
+      return { type: 'ArrEntry', value: compile(value, items) }
+</code>
+<code >
+    case 'RestEntry':
+</code>
+<code >
+      return { type: 'RestEntry', value: compile(value, items) }
+</code>
+<code >
+    default:
+</code>
+<code >
+      throw new Error('Expected Entry Node')
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+<code >
+const op = (lens, node, items) =>
+</code>
+<code >
+  lens(compile(node.left, items), compile(node.right, items))
+</code>
+<code >
+const opt = (lens, optional) => optional ? lens.optional : lens
+</code>
+<code >
+function lensForInterpolation (val) {
+</code>
+<code >
+  switch (typeof val) {
+</code>
+<code >
+    case 'function':
+</code>
+<code >
+      return val
+</code>
+<code >
+    case 'object':
+</code>
+<code >
+      if (val instanceof RegExp) { return regex(val) }
+</code>
+<code >
+      return value(val)
+</code>
+<code >
+    default:
+</code>
+<code >
+      return value(val)
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+</section>
+</details>
+<section class="export" id="e">
+<code >
+export function compile (node, items) {
+</code>
+<code >
+  switch (node.type) {
+</code>
+<code >
+    case 'Alt':
+</code>
+<code >
+      return op(alt, node, items)
+</code>
+<code >
+    case 'And':
+</code>
+<code >
+      return op(and, node, items)
+</code>
+<code >
+    case 'Seq':
+</code>
+<code >
+      return op(seq, node, items)
+</code>
+<code >
+    case 'Object':
+</code>
+<code >
+      return objectShape(node.value.map(compileEntry(items)))
+</code>
+<code >
+    case 'Array':
+</code>
+<code >
+      return arrayShape(node.value.map(compileEntry(items)))
+</code>
+<code >
+    case 'Key': {
+</code>
+<code >
+      let key = getKeyVal(node.value, items)
+</code>
+<code >
+      if (typeof key === 'string') {
+</code>
+<code >
+        return opt(keyPattern)(key)
+</code>
+<code >
+      } else {
+</code>
+<code >
+        return opt(index)(key)
+</code>
+<code >
+      }
+</code>
+<code >
+    }
+</code>
+<code >
+    case 'Slice': {
+</code>
+<code >
+      let from = node.from ? getKeyVal(node.from) : undefined
+</code>
+<code >
+      let to = node.to ? getKeyVal(node.to) : undefined
+</code>
+<code >
+      return slice(from, to)
+</code>
+<code >
+    }
+</code>
+<code >
+    case 'Spread':
+</code>
+<code >
+      return spread
+</code>
+<code >
+    case 'Recursive':
+</code>
+<code >
+      return recursive
+</code>
+<code >
+    case 'ID':
+</code>
+<code >
+      return id
+</code>
+<code >
+    case 'dqstring':
+</code>
+<code >
+    case 'int':
+</code>
+<code >
+      return value(node.value)
+</code>
+<code >
+    case 'placeholder':
+</code>
+<code >
+      return lensForInterpolation(items[node.value])
+</code>
+<code >
+    default:
+</code>
+<code >
+      throw new Error('Unknown AST Node')
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+<code >
+export function dx (strs, ...items) {
+</code>
+<code >
+  return decoratePattern(compile(parse(strs, items), items))
+</code>
+<code >
+}
+</code>
+</section>
+<details >
+<section class="details-body">
+const p = (strs, ...items) => parse(strs, items)
+<code >
+p.Key = (value, optional = false) => ({ type: 'Key', value, optional })
+</code>
+<code >
+p.ident = (value) => ({ type: 'ident', value })
+</code>
+<code >
+p.ph = (value) => ({ type: 'placeholder', value })
+</code>
+<code >
+p.int = (value) => ({ type: 'int', value })
+</code>
+<code >
+p.dqstring = (value) => ({ type: 'dqstring', value })
+</code>
+<code >
+p.Spread = { type: 'Spread' }
+</code>
+<code >
+p.Recursive = { type: 'Recursive' }
+</code>
+<code >
+p.Array = (...value) => ({ type: 'Array', value })
+</code>
+<code >
+p.Object = (...value) => ({ type: 'Object', value })
+</code>
+<code >
+p.Seq = (left, right) => ({ type: 'Seq', left, right })
+</code>
+<code >
+p.Slice = (from, to) => ({ type: 'Slice', from, to })
+</code>
+<code >
+p.Entry = (key, value, optional = false) => ({ type: 'Entry', key, value, optional })
+</code>
+<code >
+p.ArrEntry = (value) => ({ type: 'ArrEntry', value })
+</code>
+<code >
+p.RestEntry = (value) => ({ type: 'RestEntry', value })
+</code>
+</section>
+</details>
+<section class="test" id="test_parser">
+<code >
+export function test_parser (expect) {
+</code>
+<code >
+  expect(p`.foo`).toEqual(p.Key(p.ident('foo')))
+</code>
+<code >
+  expect(p`.${123}?`).toEqual(p.Key(p.ph(0), true))
+</code>
+<code >
+  expect(p`.1`).toEqual(p.Key(p.int(1)))
+</code>
+<code >
+  expect(p`."foo bar"?`).toEqual(p.Key(p.dqstring('foo bar'), true))
+</code>
+<code >
+  expect(p`*`).toEqual(p.Spread)
+</code>
+<code >
+  expect(p`**`).toEqual(p.Recursive)
+</code>
+<code >
+  expect(() => p`***`).toThrow()
+</code>
+<code >
+  expect(p`[]`).toEqual(p.Array())
+</code>
+<code >
+  expect(p`[.foo ]`).toEqual(p.Array(p.ArrEntry(p.Key(p.ident('foo')))))
+</code>
+<code >
+  expect(p`[${0}, ...${0}]`).toEqual(p.Array(p.ArrEntry(p.ph(0)), p.RestEntry(p.ph(1))))
+</code>
+<code >
+  expect(p`.foo*`).toEqual(p.Seq(p.Key(p.ident('foo')), p.Spread))
+</code>
+<code >
+  expect(p`**.bar`).toEqual(p.Seq(p.Recursive, p.Key(p.ident('bar'))))
+</code>
+<code >
+  expect(p`.[:2]`).toEqual(p.Slice(null, p.int(2)))
+</code>
+<code >
+  expect(p`.[1:2]`).toEqual(p.Slice(p.int(1), p.int(2)))
+</code>
+<code >
+  expect(p`{x: 1, y?: 2}`).toEqual(p.Object(
+</code>
+<code >
+    p.Entry(p.ident('x'), p.int(1)),
+</code>
+<code >
+    p.Entry(p.ident('y'), p.int(2), true)
+</code>
+<code >
+  ))
+</code>
+<code >
+}
+</code>
+</section>
+<section class="test" id="test_template_string">
+<code >
+export function test_template_string (expect) {
+</code>
+<code >
+  expect(dx`.foo`.match({ foo: 1 })).toEqual(1)
+</code>
+<code >
+  expect([...dx`.foo | .bar`.matchAll({ foo: 1, bar: 2 })]).toEqual([1, 2])
+</code>
+<code >
+  expect(dx`.foo .bar`.match({ foo: { bar: 3 } })).toEqual(3)
+</code>
+<code >
+  expect(dx`.foo .0`.match({ foo: ['bar', 'baz'] })).toEqual('bar')
+</code>
+<code >
+  expect(dx`.foo.0`.match({ foo: ['bar', 'baz'] })).toEqual('bar')
+</code>
+<code >
+}
+</code>
+</section>
+</body>
+</html>

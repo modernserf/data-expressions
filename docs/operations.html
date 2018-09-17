@@ -1,0 +1,143 @@
+<!doctype html>
+<html >
+<head >
+<title >
+operations.js
+</title>
+<style >
+
+  body {
+    margin: 0 auto;
+    max-width: 800px;
+  }
+  .test {
+    border: 1px solid #ccc;
+    padding: 1em;
+  }
+  code {
+    display: block;
+    white-space: pre;
+    line-height: 0.7;
+  }
+  .comment code {
+    display: inline-block;
+    background-color: #eee;
+  }
+  section {
+    margin: 1em 0;
+  }
+
+</style>
+</head>
+<body >
+<section class="export" id="t">
+<code >
+export function test (pattern, focus) {
+</code>
+<code >
+  for (const _ of pattern(focus)) { return true }
+</code>
+<code >
+  return false
+</code>
+<code >
+}
+</code>
+<aside class="comment">
+<p> todo: rename as <code>match</code></p>
+
+</aside>
+<code >
+export function match1 (pattern, focus) {
+</code>
+<code >
+  for (const { match } of pattern(focus)) {
+</code>
+<code >
+    return match
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+<aside class="comment">
+<p> todo: rename as <code>matchAll</code></p>
+
+</aside>
+<code >
+export function * match (pattern, focus) {
+</code>
+<code >
+  for (const { match } of pattern(focus)) {
+</code>
+<code >
+    yield match
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+<code >
+export function replace (pattern, focus, value) {
+</code>
+<code >
+  for (const { replace } of pattern(focus)) {
+</code>
+<code >
+    return replace(value)
+</code>
+<code >
+  }
+</code>
+<code >
+  return focus
+</code>
+<code >
+}
+</code>
+<code >
+export function * updateAll (pattern, focus, fn) {
+</code>
+<code >
+  for (const { match, replace } of pattern(focus)) {
+</code>
+<code >
+    yield replace(fn(match))
+</code>
+<code >
+  }
+</code>
+<code >
+}
+</code>
+<code >
+export function decoratePattern (pattern) {
+</code>
+<code >
+  pattern.test = (focus) => test(pattern, focus)
+</code>
+<code >
+  pattern.match = (focus) => match1(pattern, focus)
+</code>
+<code >
+  pattern.matchAll = (focus) => match(pattern, focus)
+</code>
+<code >
+  pattern.replace = (focus, value) => replace(pattern, focus, value)
+</code>
+<code >
+  pattern.updateAll = (focus, value) => updateAll(pattern, focus, value)
+</code>
+<code >
+  return pattern
+</code>
+<code >
+}
+</code>
+</section>
+</body>
+</html>

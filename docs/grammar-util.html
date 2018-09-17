@@ -1,0 +1,138 @@
+<!doctype html>
+<html >
+<head >
+<title >
+grammar-util.js
+</title>
+<style >
+
+  body {
+    margin: 0 auto;
+    max-width: 800px;
+  }
+  .test {
+    border: 1px solid #ccc;
+    padding: 1em;
+  }
+  code {
+    display: block;
+    white-space: pre;
+    line-height: 0.7;
+  }
+  .comment code {
+    display: inline-block;
+    background-color: #eee;
+  }
+  section {
+    margin: 1em 0;
+  }
+
+</style>
+</head>
+<body >
+<details >
+<section class="details-body">
+const moo = require('moo')
+</section>
+</details>
+<section class="export" id="r">
+<code >
+export const lexer = moo.compile({
+</code>
+<code >
+  int: { match: /-?\d+/, value: (x) => Number(x) },
+</code>
+<code >
+  ident: /[A-Za-z_$][A-Za-z0-9_$]*/,
+</code>
+<code >
+  placeholder: { match: /<\d+>/, value: (x) => Number(x.slice(1, -1)) },
+</code>
+<code >
+  dqstring: { match: /"(?:\\"|[^"\n])+"/, value: (x) => x.slice(1, -1) },
+</code>
+<code >
+  op: /[|&(){}[\],:?_]|\*+|\.+/,
+</code>
+<code >
+  ws: { match: /[ \t\n]+/, lineBreaks: true }
+</code>
+<code >
+})
+</code>
+</section>
+<details >
+<section class="details-body">
+const next = lexer.next.bind(lexer)
+<code >
+lexer.next = () => {
+</code>
+<code >
+  let tok
+</code>
+<code >
+  while ((tok = next()) && tok.type === 'ws') {}
+</code>
+<code >
+  return tok
+</code>
+<code >
+}
+</code>
+</section>
+</details>
+<section class="export" id="_">
+<code >
+export const _ = null
+</code>
+<code >
+export function tag (type, ...params) {
+</code>
+<code >
+  return (args) =>
+</code>
+<code >
+    args.reduce((coll, arg, i) => {
+</code>
+<code >
+      if (params[i]) {
+</code>
+<code >
+        coll[params[i]] = arg
+</code>
+<code >
+      }
+</code>
+<code >
+      return coll
+</code>
+<code >
+    }, { type })
+</code>
+<code >
+}
+</code>
+<code >
+export function _2 (args) {
+</code>
+<code >
+  return args[1]
+</code>
+<code >
+}
+</code>
+<code >
+export function cons ([h, t]) {
+</code>
+<code >
+  return [h, ...t].map(([x]) => x)
+</code>
+<code >
+}
+</code>
+<code >
+export function value ([{ type, value }]) { return { type, value } }
+</code>
+</section>
+</body>
+</html>
