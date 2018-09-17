@@ -12,7 +12,7 @@
     "build:test": "rollup src/test.js -o src/test.build.js -f cjs",
     "build:parser": "nearleyc src/grammar.ne -o src/grammar.build.js",
     "watch:test": "watch 'npm test' ./src",
-    "watch:docs": "open 'http://localhost:8080/' && watch 'npm run build:docs' ./config & http-server ./docs",
+    "watch:docs": "open 'http://localhost:8080/' && watch 'npm run build:docs' ./src & http-server ./docs",
     "publish:docs": "config/publish-docs.sh"
   },
   "author": "Justin Falcone <justin@justinfalcone.com>",
@@ -26,6 +26,8 @@
     "eslint-plugin-standard": "^4.0.0",
     "faucet": "0.0.1",
     "http-server": "^0.11.1",
+    "marked": "^0.5.0",
+    "prismjs": "^1.15.0",
     "rollup": "^0.65.2",
     "tape": "^4.9.1",
     "watch": "^1.0.2"

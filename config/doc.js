@@ -1,6 +1,7 @@
 const fs = require('fs').promises
 const path = require('path')
 const marked = require('marked')
+const prism = require('prismjs')
 
 const SRC_DIR = './src'
 const DOCS_DIR = './docs'
@@ -26,76 +27,16 @@ async function main () {
 }
 
 const css = (strs) => strs.join('')
-const stylesheet = css`
-  body {
-    margin: 0 auto;
-    max-width: 800px;
-    font-family: sans-serif;
-  }
-  p {
-    margin: 1em auto 0.5em;
-  }
-  .test {
-    border: 1px solid #ccc;
-    padding-bottom: 1em;
-  }
-  code {
-    display: block;
-    white-space: pre;
-    line-height: 1.4em;
-  }
-  section {
-    margin: 1em 0;
-  }
-  .test header {
-    background-color: papayawhip;
-    font-weight: bold;
-    padding: 0.5em;
-  }
-  .test .container {
-    padding: 0.5em;
-  }
-  summary code {
-    display: inline;
-    white-space: normal;
-  }
-  .test code {
-    padding-left: 1em;
-    position: relative;
-    white-space: pre-line;
-  }
-  .expect::before,
-  .to-equal::before {
-    position: absolute;
-    left: 0;
-    font-weight: bold;
-  }
-  .expect::before {
-    content: ">";
-    color: blue;
-  }
-  .to-equal::before {
-    content: "<";
-    color: gray;
-  }
-  .comment {
-    line-height: 1.4;
-  }
-  .comment code {
-    display: inline-block;
-    background-color: #eee;
-    line-height: 1;
-    font-size: 16px;
-    padding-left: 0;
-  }
-`
 
 function * formatFile (name, data) {
   yield `<!doctype html>`
   yield * h('html', '', [
     ...h('head', '', [
+      '<meta charset="utf-8">',
+      '<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">',
+      '<meta name="viewport" content="width=device-width,initial-scale=1">',
       ...h('title', '', name),
-      ...h('style', '', stylesheet)
+      '<link rel="stylesheet" type="text/css" href="doc.css" />'
     ]),
     ...h('body', '', body(data.split(/\n/).filter(removeEmpty)))
   ])
@@ -126,6 +67,10 @@ const expectHeadPattern = /^\s*expect\(/
 const expectFullPattern = /^\s*expect\(([^]+)\)\s*.toEqual\(([^]+)\)\s*/
 const asiLinePattern = /^\s*(?:let|const|var|function|class|if|while|;)/
 
+function * code (props, string) {
+  yield * h('code', props, prism.highlight(string, prism.languages.javascript))
+}
+
 function * expect (lines) {
   const buffer = [lines.shift()]
   while (lines.length) {
@@ -139,10 +84,10 @@ function * expect (lines) {
   const text = buffer.join('\n')
   const match = text.match(expectFullPattern)
   if (match) {
-    yield * h('code', 'class="expect"', match[1].trim())
-    yield * h('code', 'class="to-equal"', match[2].trim())
+    yield * code('class="expect"', match[1].trim())
+    yield * code('class="to-equal"', match[2].trim())
   } else {
-    yield * h('code', 'class="to-equal"', text.trim())
+    yield * code('class="to-equal"', text.trim())
   }
 }
 
@@ -161,19 +106,16 @@ function * test (lines) {
     } else if (line.match(expectHeadPattern)) {
       buffer.push(join(expect(lines)))
     } else {
-      buffer.push(join(h('code', '', line)))
+      buffer.push(join(code('', line)))
       lines.shift()
     }
   }
-  yield * h('section', `class="test" id="test_${title}"`, [
-    ...h('header', '', title[1].replace(/_/g, ' ')),
-    ...h('div', 'class="container"', join(buffer))
-  ])
+  yield * h('section', `class="test" id="test_${title}"`, join(buffer))
 }
 
 function * contentBody (lines) {
   const buffer = []
-  buffer.push(join(h('code', '', lines.shift())))
+  buffer.push(join(code('', lines.shift())))
   while (lines.length) {
     const line = lines[0]
 
@@ -182,7 +124,7 @@ function * contentBody (lines) {
     } else if (line.match(commentPattern) || line.match(testPattern) || line.match(exportPattern)) {
       break
     } else {
-      buffer.push(join(h('code', '', line)))
+      buffer.push(join(code('', line)))
       lines.shift()
     }
   }
@@ -206,7 +148,7 @@ function * detailBody (lines) {
     } else if (line.match(exportPattern) || line.match(testPattern) || line.match(commentPattern)) {
       return
     } else {
-      yield * h('code', '', line)
+      yield * code('', line)
       lines.shift()
     }
   }

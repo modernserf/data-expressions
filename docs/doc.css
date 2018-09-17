@@ -1,0 +1,85 @@
+body {
+  margin: 0 auto;
+  max-width: 800px;
+  font-family: sans-serif;
+  color: #222;
+  background-color: #f9f9f9;
+}
+p {
+  margin: 0 auto 0.5em;
+}
+code {
+  display: block;
+  white-space: pre-wrap;
+  line-height: 1.4em;
+  font-size: 16px;
+  margin-left: 2em;
+  text-indent: -2em;
+}
+section {
+  margin: 1em 0;
+}
+summary code {
+  display: inline;
+  white-space: normal;
+  margin: 0;
+  text-indent: 0;
+}
+.content {
+  margin: 0.5em auto;
+}
+.test {
+  border: 1px solid #ccc;
+  padding: 0.5em;
+  background-color: white;
+  border-radius: 4px;
+}
+.test code {
+  padding-left: 1em;
+  position: relative;
+  white-space: pre-line;
+}
+.test code+.comment {
+  margin-top: 0.5em;
+}
+.expect::before,
+.to-equal::before {
+  position: absolute;
+  left: 0;
+  font-weight: bold;
+}
+.expect::before {
+  content: ">";
+  color: #00C;
+}
+.to-equal::before {
+  content: "<";
+  color: #aaa;
+}
+.comment {
+  line-height: 1.4;
+}
+.comment code {
+  display: inline-block;
+  background-color: white;
+  line-height: 1;
+  font-size: 16px;
+  padding: 4px;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  text-indent: 0;
+  margin: 0;
+}
+.token.punctuation,
+.token.operator,
+.token.comment {
+  color: #999;
+}
+.token.keyword {
+  color: #666;
+}
+.token.string,
+.token.number,
+.token.boolean {
+  color: #900;
+}

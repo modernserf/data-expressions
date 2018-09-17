@@ -12,54 +12,61 @@ import { test, match, replace, updateAll } from './operations.js'
 
 // ## Basic Patterns
 
-// ### where
-// succeeds if `fn(focus)` is true, fails if `fn(focus)` is false.
+// ### `${where(fn)}`
 export const where = (fn) => function * (focus) {
   if (fn(focus)) {
     yield { match: focus, replace: (value) => value }
   }
 }
+
+// `.test` succeeds if the function returns true, and fails if it returns false.
 export function test_where (expect, dx) {
-  // `where` succeeds if the function returns true, and fails if it returns false.
   expect(dx`${where((x) => x > 10)}`.test(100))
     .toEqual(true)
   expect(dx`${where((x) => x > 10)}`.test(1))
     .toEqual(false)
-  // Matching yields the focus if the function returns true, and nothing if it returns false.
+}
+
+// `.match` yields the focus if the function returns true, and nothing if it returns false.
+export function test_where_match (expect, dx) {
   expect([...dx`${where((x) => x > 10)}`.matchAll(100)])
     .toEqual([100])
   expect([...dx`${where((x) => x > 10)}`.matchAll(1)])
     .toEqual([])
-  // Replace returns the replacement value if the function returns true, and the focus if it returns false.
+}
+
+// `.replace` returns the replacement value if the function returns true, and the focus if it returns false.
+export function test_where_replace (expect, dx) {
   expect(dx`${where((x) => x > 10)}`.replace(100, 500))
     .toEqual(500)
   expect(dx`${where((x) => x > 10)}`.replace(1, 500))
     .toEqual(1)
 }
 
-// ### id
-// `_`
-//
+// ---
+
+// ### `${id}`, `_`
 // Always succeeds. Useful as a placeholder in complex expressions.
 export const id = where(() => true)
 
+// `.match` will always return the focus; `.replace` will always return the replacement value.
 export function test_id (expect, dx) {
-  // Matching will always return the focus.
   expect(dx`_`.match({ foo: 1 })).toEqual({ foo: 1 })
-  // Replace will always return the replacement value.
   expect(dx`_`.replace({ foo: 1 }, { bar: 2 })).toEqual({ bar: 2 })
 }
 
-// ### fail
+//  ---
+
+// ### `${fail}`
 // Always fails. Useful for halting/pruning match results.
 export function * fail () {}
 export function test_fail (expect) {
   expect(test(seq(id, fail), 'foo')).toEqual(false)
 }
 
-// ### value
-// `"foo"`, `1`, `${primitive value}`
-//
+// ---
+
+// ### `${value(x)}`, `"foo"`, `1`, `${primitive value}`
 // Succeed if the focus `===` the value.
 export const value = (val) => where((x) => x === val)
 export function test_value (expect, dx) {
@@ -74,6 +81,8 @@ export function test_value (expect, dx) {
   const fn = function () {}
   expect(dx`${value(fn)}`.test(fn)).toEqual(true)
 }
+
+// ---
 
 // ### Type patterns
 // Succeeds if the focus has this type.

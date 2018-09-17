@@ -1,4 +1,5 @@
 node_modules
 .nyc_output
-docs
+/docs/*
+!/docs/doc.css
 *.build.js
