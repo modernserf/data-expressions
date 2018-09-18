@@ -79,9 +79,9 @@ export function compile (node, items) {
     case 'Key': {
       let key = getKeyVal(node.value, items)
       if (typeof key === 'string') {
-        return opt(keyPattern)(key)
+        return opt(keyPattern, node.optional)(key)
       } else {
-        return opt(index)(key)
+        return opt(index, node.optional)(key)
       }
     }
     case 'Slice': {
@@ -139,6 +139,7 @@ export function test_parser (expect) {
   expect(p`[${0}, ...${0}]`).toEqual(p.Array(p.ArrEntry(p.ph(0)), p.RestEntry(p.ph(1))))
   expect(p`.foo*`).toEqual(p.Seq(p.Key(p.ident('foo')), p.Spread))
   expect(p`**.bar`).toEqual(p.Seq(p.Recursive, p.Key(p.ident('bar'))))
+  expect(p`.[-1:]`).toEqual(p.Slice(p.int(-1), null))
   expect(p`.[:2]`).toEqual(p.Slice(null, p.int(2)))
   expect(p`.[1:2]`).toEqual(p.Slice(p.int(1), p.int(2)))
   expect(p`{x: 1, y?: 2}`).toEqual(p.Object(

@@ -1,6 +1,12 @@
+* {
+  position: relative;
+  box-sizing: border-box;
+}
+
 body {
   margin: 0 auto;
   max-width: 800px;
+  padding: 0 1em;
   font-family: sans-serif;
   color: #222;
   background-color: #f9f9f9;
@@ -36,7 +42,6 @@ summary code {
 }
 .test code {
   padding-left: 1em;
-  position: relative;
   white-space: pre-line;
 }
 .test code+.comment {

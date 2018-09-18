@@ -26,8 +26,6 @@ async function main () {
   }
 }
 
-const css = (strs) => strs.join('')
-
 function * formatFile (name, data) {
   yield `<!doctype html>`
   yield * h('html', '', [
@@ -56,7 +54,7 @@ function * comment (lines) {
       break
     }
   }
-  yield * h('aside', 'class="comment"', marked(buffer.join('\n')))
+  yield * h('aside', 'class="comment"', marked(buffer.join('\n\n')))
 }
 
 const indentedPattern = /^\s+\S/
@@ -138,29 +136,12 @@ function * contentBody (lines) {
   }
 }
 
-function * detailBody (lines) {
-  yield lines.shift()
-  while (lines.length) {
-    const line = lines[0]
-
-    if (line.match(commentPattern) && line.match(indentedPattern)) {
-      yield * comment(lines)
-    } else if (line.match(exportPattern) || line.match(testPattern) || line.match(commentPattern)) {
-      return
-    } else {
-      yield * code('', line)
-      lines.shift()
-    }
-  }
-}
-
 function * body (lines) {
   while (lines.length) {
     const line = lines[0]
-    let match
     if (line.match(commentPattern)) {
       yield * comment(lines)
-    } else if (match = line.match(testPattern)) {
+    } else if (line.match(testPattern)) {
       yield * test(lines)
     } else {
       yield * contentBody(lines)
