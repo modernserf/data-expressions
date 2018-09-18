@@ -373,15 +373,14 @@ function * _recursive (focus, maxVisits) {
 
 // `.matchAll` yields items in breadth-first order, starting with itself.
 export function test_recursive (expect, dx) {
-  expect([...dx`**`.matchAll({ foo: 1, bar: [2, { baz: 3 }] })])
-    .toEqual([
-      { foo: 1, bar: [2, { baz: 3 }] },
-      1,
-      [2, { baz: 3 }],
-      2,
-      { baz: 3 },
-      3
-    ])
+  expect([...dx`**`.matchAll({ foo: 1, bar: [2, { baz: 3 }] })]).toEqual([
+    { foo: 1, bar: [2, { baz: 3 }] },
+    1,
+    [2, { baz: 3 }],
+    2,
+    { baz: 3 },
+    3
+  ])
 }
 // The recursive pattern combines with other patterns for deep-search effects.
 export function test_recursive_search (expect, dx) {
@@ -658,8 +657,8 @@ export function test_array (expect, dx) {
 export function test_array_rest (expect, dx) {
   expect(dx`["foo", ...${number}]`.match(['foo', 1, 2, 3]))
     .toEqual(['foo', 1, 2, 3])
-  // expect(dx`["foo", ... .x]`.match(['foo', { x: 1 }, { x: 2 }, { x: 3 }]))
-  //   .toEqual(['foo', 1, 2, 3])
+  expect(dx`["foo", ... .x]`.match(['foo', { x: 1 }, { x: 2 }, { x: 3 }]))
+    .toEqual(['foo', 1, 2, 3])
 }
 
 // If you only want to match against the first few items in an array, you can spread the identity pattern:

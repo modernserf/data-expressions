@@ -69,6 +69,8 @@ function * code (props, string) {
   yield * h('code', props, prism.highlight(string, prism.languages.javascript))
 }
 
+const dedent = (text) => text.split('\n').map((line) => line.slice(2)).join('\n')
+
 function * expect (lines) {
   const buffer = [lines.shift()]
   while (lines.length) {
@@ -79,7 +81,7 @@ function * expect (lines) {
       buffer.push(lines.shift())
     }
   }
-  const text = buffer.join('\n')
+  const text = dedent(buffer.join('\n'))
   const match = text.match(expectFullPattern)
   if (match) {
     yield * code('class="expect"', match[1].trim())
@@ -104,7 +106,7 @@ function * test (lines) {
     } else if (line.match(expectHeadPattern)) {
       buffer.push(join(expect(lines)))
     } else {
-      buffer.push(join(code('', line)))
+      buffer.push(join(code('setup', dedent(line))))
       lines.shift()
     }
   }
