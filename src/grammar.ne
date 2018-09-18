@@ -8,12 +8,11 @@ sep[ITEM, SEP] -> $ITEM ($SEP $ITEM {% _2 %}):* {% cons %}
 Expr     -> AltExpr  {% id %}
 
 # operators
-AltExpr  -> AltExpr "|" AndExpr   {% tag("Alt", "left", _, "right") %}
-         |  AndExpr               {% id %}
-AndExpr  -> AndExpr "&" SeqExpr   {% tag("And", "left", _, "right") %}
+AltExpr  -> AltExpr "|" SeqExpr   {% tag("Alt", "left", _, "right") %}
          |  SeqExpr               {% id %}
 SeqExpr  -> SeqExpr BaseExpr      {% tag("Seq", "left", "right") %}
          |  SeqExpr "!"           {% tag("Cut", "value") %}
+         |  SeqExpr "&"           {% tag("And", "value") %}
          |  BaseExpr              {% id %}
 
 BaseExpr -> "(" Expr ")"          {% _2 %}

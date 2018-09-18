@@ -66,12 +66,12 @@ export function compile (node, items) {
   switch (node.type) {
     case 'Alt':
       return op(alt, node, items)
-    case 'And':
-      return op(and, node, items)
     case 'Seq':
       return op(seq, node, items)
+    case 'And':
+      return and(compile(node.value, items))
     case 'Cut':
-      return limit(node.value, 1)
+      return limit(compile(node.value, items), 1)
     case 'Object':
       return objectShape(node.value.map(compileEntry(items)))
     case 'Array':

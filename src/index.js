@@ -22,7 +22,7 @@ export function test_dx_replace (expect, dx) {
 // ## API Reference
 
 // ### [Patterns](patterns.html)
-export { id, fail, key, index, slice, where, value, regex, spread, recursive, collect, project, and, alt, seq, objectShape, arrayShape, arrayOf, typeOf, instanceOf, number, string, func, func as function, bool, bool as boolean, symbol, date } from './patterns.js'
+export { id, fail, key, index, slice, where, value, regex, spread, recursive, collect, lens, and, alt, seq, objectShape, arrayShape, typeOf, instanceOf, number, string, func, func as function, bool, bool as boolean, symbol, date } from './patterns.js'
 
 // ### [Operations](operations.html)
 export { test, match, replace, updateAll } from './operations.js'
