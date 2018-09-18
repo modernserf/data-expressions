@@ -1,5 +1,5 @@
 // # Patterns
-import { test, match, replace, updateAll } from './operations.js'
+import { test, match, replace } from './operations.js'
 
 // Just as regex are composed from patterns that match strings, datex are composed from patterns that match data structures. Some of these patterns match the data directly, while others -- much like the `|`, `+` and `*` in regular expressions, are used to combine these patterns.
 // Datex are implemented as ES6 generators. A **pattern**, when called with a **focus**, will **yield** an object with the shape `{ match, replace }` for every match. If the generator yields no results, the match has **failed**; otherwise it has **succeeded**.
@@ -374,96 +374,75 @@ export function test_recursive_search (expect, dx) {
 }
 
 // ## Combinators
-// These functions operate on the patterns themselves, and return new patterns.
-// Patterns can be grouped with parentheses. Otherwise, `.foo & .bar .baz | .quux .xyzzy` groups as `(.foo & (.bar .baz)) | (.quux .xyyzy)`.
+// Combinators are functions that combine patterns into new ones.
+// Patterns can be grouped with parentheses. Otherwise,`.foo & .bar .baz | .quux .xyzzy` groups as `(.foo & (.bar .baz)) | (.quux .xyyzy)`.
 
-export const arrayOf = (lens) => function * (focus) {
-  for (const item of focus) {
-    if (!test(lens, item)) { return }
-  }
-  yield * id(focus)
-}
-export function test_arrayOf (expect) {
-  const lens = arrayOf(key('foo'))
-  expect(test(lens, [{ foo: 1 }, { foo: 2 }])).toEqual(true)
-  expect(test(lens, [{ foo: 1 }, { bar: 2 }])).toEqual(false)
-}
-
-export const collect = (x, reducer = defaultReducer) => function * (focus) {
-  let collected
-  for (const lens of x(focus)) {
-    collected = reducer(collected, lens)
-  }
-  yield collected
-}
-function defaultReducer (l = { match: [], replace: () => [] }, r) {
-  return {
-    match: l.match.concat([r.match]),
-    replace: (value) => l.replace(value).concat([r.replace(value)])
+// ### `${seq(patterns...)}`,`.foo.bar` , `.foo .bar`
+// Chain sequences of patterns. Whitespace between patterns is optional.
+export const seq = (...xs) => xs.reduce(_seq, id)
+const _seq = (x, y) => function * (focus) {
+  for (const outer of x(focus)) {
+    for (const inner of y(outer.match)) {
+      yield {
+        match: inner.match,
+        replace: (value) => outer.replace(inner.replace(value))
+      }
+    }
   }
 }
 
-export function test_collect (expect) {
-  const lens = collect(alt(key('foo'), key('bar')))
-  const [res] = match(lens, { foo: 1, bar: 2, baz: 3 })
-  expect(res).toEqual([1, 2],
-    'collect.match returns an array of results')
-  const [res2] = match(lens, { foo: 1, quux: 2 })
-  expect(res2).toEqual([1],
-    'collect.match propagates failure')
-  const out = replace(lens, { foo: 1, bar: 2, baz: 3 }, 10)
-  expect(out).toEqual([
-    { foo: 10, bar: 2, baz: 3 },
-    { foo: 1, bar: 10, baz: 3 }
-  ], 'collect.replace returns an array of results')
+// `.match` succeeds if each pattern in the sequence succeeds
+export function test_seq (expect, dx) {
+  const fizz = where((x) => x % 3 === 0)
+  const buzz = where((x) => x % 5 === 0)
+  expect(dx`${fizz} ${buzz}`.test(15)).toEqual(true)
+  expect(dx`${fizz} ${buzz}`.test(5)).toEqual(false)
 }
 
-export const project = (fn) => function * (focus) {
-  yield {
-    match: fn(focus),
-    replace: (value) => value
+// The output of each pattern in the sequence is the input to the following pattern. You can use this with lenses to match and replace deep into structures.
+export function test_seq_lens (expect, dx) {
+  expect(dx`.foo .bar`.match({ foo: { bar: 'hello' } }))
+    .toEqual('hello')
+  expect(dx`.foo .bar`.replace({ foo: { bar: 'hello' } }, 'goodbye'))
+    .toEqual({ foo: { bar: 'goodbye' } })
+}
+
+// ---
+
+// ### `${alt(patterns...)}`, `.foo | .bar`
+// Match multiple patterns on a value.
+export const alt = (...xs) => function * (focus) {
+  for (const x of xs) {
+    yield * x(focus)
   }
 }
-export function test_project (expect) {
-  const lens = project((x) => x.toUpperCase())
-  const [res] = match(lens, 'foo')
-  expect(res).toEqual('FOO')
-  const out = replace(lens, 'foo', 'bar')
-  expect(out).toEqual('bar')
+export function test_alt (expect, dx) {
+  const fizz = where((x) => x % 3 === 0)
+  const buzz = where((x) => x % 5 === 0)
+  expect(dx`${fizz} | ${buzz}`.test(15)).toEqual(true)
+  expect(dx`${fizz} | ${buzz}`.test(3)).toEqual(true)
+  expect(dx`${fizz} | ${buzz}`.test(5)).toEqual(true)
+  expect(dx`${fizz} | ${buzz}`.test(7)).toEqual(false)
 }
 
-// `${x} | ${y}`
-// Try both patterns on a value. Note that `.match` returns an iterator, and will return _both_ results, if they both succeed; `.replace` will replace the _first_ that succeeds.
-export const alt = (x, y) => function * (focus) {
-  yield * x(focus)
-  yield * y(focus)
-}
-export function test_alt (expect) {
-  const lens = alt(key('foo'), key('bar'))
-  const [res] = match(lens, { foo: 1, baz: 3 })
-  expect(res).toEqual(1,
-    'alt.match returns first on success')
-  const [res2] = match(lens, { bar: 2, baz: 3 })
-  expect(res2).toEqual(2,
-    'alt.match returns second if first fails')
-  expect(test(lens, { baz: 3 })).toEqual(false)
-  // 'alt.match fails if both fail')
-  const out = replace(lens, { foo: 1, baz: 3 }, 10)
-  expect(out).toEqual({ foo: 10, baz: 3 },
-    'alt.replace on first item')
-  const out2 = replace(lens, { bar: 2, baz: 3 }, 10)
-  expect(out2).toEqual({ bar: 10, baz: 3 },
-    'alt.replace on second item')
-  const [...out3] = updateAll(lens, { foo: 1, bar: 2, baz: 3 }, () => 10)
-  expect(out3).toEqual([
-    { foo: 10, bar: 2, baz: 3 },
-    { foo: 1, bar: 10, baz: 3 }
-  ], 'alt.replace returns multiple items on success')
+// Note that `.matchAll` returns an iterator, and will return _both_ results if they both succeed.
+export function test_alt_match (expect, dx) {
+  expect(dx`.foo | .bar`.match({ foo: 1, baz: 3 }))
+    .toEqual(1)
+  expect(dx`.foo | .bar`.match({ bar: 2, quux: 4 }))
+    .toEqual(2)
+  expect([...dx`.foo | .bar`.matchAll({ foo: 1, bar: 2 })])
+    .toEqual([1, 2])
 }
 
-// `${x} & ${y}`
+// TODO: multiple replacement
+
+// ---
+
+// ### `${and(patterns...)}`, `${x} & ${y}`
 // If the left pattern succeeds, try the right pattern on the focus.
-export const and = (x, y) => function * (focus) {
+export const and = (...xs) => xs.reduce(_and, id)
+const _and = (x, y) => function * (focus) {
   for (const _ of x(focus)) {
     yield * y(focus)
   }
@@ -475,32 +454,6 @@ export function test_and (expect) {
   expect(test(lens, { bar: 2, quux: 3 })).toEqual(false)
   const out = replace(lens, { foo: 1, bar: 2 }, 4)
   expect(out).toEqual({ foo: 1, bar: 4 })
-}
-
-// `.foo.bar` , `.foo .bar`
-// You can chain sequences of patterns. Whitespace between patterns is optional.
-export const seq = (x, y) => function * (focus) {
-  for (const outer of x(focus)) {
-    for (const inner of y(outer.match)) {
-      yield {
-        match: inner.match,
-        replace: (value) => outer.replace(inner.replace(value))
-      }
-    }
-  }
-}
-export function test_seq (expect) {
-  const lens = seq(key('foo'), key('bar'))
-  const [res] = match(lens, { foo: { bar: 1 } })
-  expect(res).toEqual(1,
-    'seq.match traverses structures')
-  const out = replace(lens, { foo: { bar: 1 } }, 2)
-  expect(out).toEqual({ foo: { bar: 2 } },
-    'seq.replace traverses structures')
-  const lens2 = seq(recursive, key('bar'))
-  const out2 = replace(lens2, { foo: { quux: { flerb: { bar: 1 } } } }, 2)
-  expect(out2).toEqual({ foo: { quux: { flerb: { bar: 2 } } } },
-    'seq.replace recursive updates')
 }
 
 function lensesForStructure (value) {
@@ -613,7 +566,7 @@ export function skip_test_objectShape_additional (expect) {
 
 // ---
 
-// # `[${x}, ${y}, ...${rest}]`
+// ### `[${x}, ${y}, ...${rest}]`
 // Succeeds if every pattern matches the value at that index or for the rest of the array.
 
 export const arrayShape = (array, rest) => function * (focus) {
@@ -662,4 +615,59 @@ export function test_array_rest (expect) {
   const lens = arrayShape([value('foo')], arrayOf(number))
   const [res] = match(lens, ['foo', 1, 2, 3])
   expect(res).toEqual(['foo', 1, 2, 3])
+}
+
+export const arrayOf = (lens) => function * (focus) {
+  for (const item of focus) {
+    if (!test(lens, item)) { return }
+  }
+  yield * id(focus)
+}
+export function test_arrayOf (expect) {
+  const lens = arrayOf(key('foo'))
+  expect(test(lens, [{ foo: 1 }, { foo: 2 }])).toEqual(true)
+  expect(test(lens, [{ foo: 1 }, { bar: 2 }])).toEqual(false)
+}
+
+export const collect = (x, reducer = defaultReducer) => function * (focus) {
+  let collected
+  for (const lens of x(focus)) {
+    collected = reducer(collected, lens)
+  }
+  yield collected
+}
+function defaultReducer (l = { match: [], replace: () => [] }, r) {
+  return {
+    match: l.match.concat([r.match]),
+    replace: (value) => l.replace(value).concat([r.replace(value)])
+  }
+}
+
+export function test_collect (expect) {
+  const lens = collect(alt(key('foo'), key('bar')))
+  const [res] = match(lens, { foo: 1, bar: 2, baz: 3 })
+  expect(res).toEqual([1, 2],
+    'collect.match returns an array of results')
+  const [res2] = match(lens, { foo: 1, quux: 2 })
+  expect(res2).toEqual([1],
+    'collect.match propagates failure')
+  const out = replace(lens, { foo: 1, bar: 2, baz: 3 }, 10)
+  expect(out).toEqual([
+    { foo: 10, bar: 2, baz: 3 },
+    { foo: 1, bar: 10, baz: 3 }
+  ], 'collect.replace returns an array of results')
+}
+
+export const project = (fn) => function * (focus) {
+  yield {
+    match: fn(focus),
+    replace: (value) => value
+  }
+}
+export function test_project (expect) {
+  const lens = project((x) => x.toUpperCase())
+  const [res] = match(lens, 'foo')
+  expect(res).toEqual('FOO')
+  const out = replace(lens, 'foo', 'bar')
+  expect(out).toEqual('bar')
 }
