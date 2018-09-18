@@ -17,7 +17,7 @@ export function parse (strs, items) {
   return results[0]
 }
 
-function getKeyVal (node, items) {
+function compileKey (node, { items }) {
   switch (node.type) {
     case 'dqstring':
     case 'ident':
@@ -32,25 +32,21 @@ function getKeyVal (node, items) {
   throw new Error('Invalid key type')
 }
 
-const compileEntry = (items) => ({ type, key, value, optional }) => {
+const compileEntry = ({ type, key, value, optional }, compile) => {
   switch (type) {
     case 'Entry':
-      return { type: 'Entry', key: getKeyVal(key, items), value: compile(value, items), optional }
+      return { type: 'Entry', key: compileKey(key, compile), value: compile(value), optional }
     case 'ArrEntry':
-      return { type: 'ArrEntry', value: compile(value, items) }
+      return { type: 'ArrEntry', value: compile(value) }
     case 'RestEntry':
-      return { type: 'RestEntry', value: compile(value, items) }
+      return { type: 'RestEntry', value: compile(value) }
     default:
       throw new Error('Expected Entry Node')
   }
 }
 
-const op = (lens, node, items) =>
-  lens(compile(node.left, items), compile(node.right, items))
-
-const opt = (lens, optional) => optional ? lens.optional : lens
-
-function lensForInterpolation (val) {
+function compilePlaceholder (node, { items }) {
+  const val = items[node.value]
   switch (typeof val) {
     case 'function':
       return val
@@ -62,51 +58,56 @@ function lensForInterpolation (val) {
   }
 }
 
-export function compile (node, items) {
-  switch (node.type) {
-    case 'Alt':
-      return op(alt, node, items)
-    case 'Seq':
-      return op(seq, node, items)
-    case 'And':
-      return and(compile(node.value, items))
-    case 'Cut':
-      return limit(compile(node.value, items), 1)
-    case 'Object':
-      return objectShape(node.value.map(compileEntry(items)))
-    case 'Array':
-      return arrayShape(node.value.map(compileEntry(items)))
-    case 'Key': {
-      let key = getKeyVal(node.value, items)
-      if (typeof key === 'string') {
-        return opt(keyPattern, node.optional)(key)
-      } else {
-        return opt(index, node.optional)(key)
-      }
-    }
-    case 'Slice': {
-      let from = node.from ? getKeyVal(node.from) : undefined
-      let to = node.to ? getKeyVal(node.to) : undefined
-      return slice(from, to)
-    }
-    case 'Spread':
-      return spread
-    case 'Recursive':
-      return recursive
-    case 'ID':
-      return id
-    case 'dqstring':
-    case 'int':
-      return value(node.value)
-    case 'placeholder':
-      return lensForInterpolation(items[node.value])
-    default:
-      throw new Error('Unknown AST Node')
+const infix = (pattern) => (node, compile) =>
+  pattern(compile(node.left), compile(node.right))
+const postfix = (pattern) => (node, compile) =>
+  pattern(compile(node.value))
+const collection = (pattern) => (node, compile) =>
+  pattern(node.value.map((node) => compileEntry(node, compile)))
+
+const opt = (pattern, optional) => optional ? pattern.optional : pattern
+
+function compile (node, items) {
+  const compiler = (n) => compile(n, items)
+  compiler.items = items
+  if (!compilers[node.type]) {
+    throw new Error('Unknown AST Node')
   }
+  return compilers[node.type](node, compiler)
 }
 
+const compilers = {
+  Alt: infix(alt),
+  Seq: infix(seq),
+  And: postfix(and),
+  Cut: postfix(limit),
+  Object: collection(objectShape),
+  Array: collection(arrayShape),
+  Key: (node, compiler) => {
+    let key = compileKey(node.value, compile)
+    if (typeof key === 'string') {
+      return opt(keyPattern, node.optional)(key)
+    } else {
+      return opt(index, node.optional)(key)
+    }
+  },
+  Slice: (node, compiler) => {
+    let from = node.from ? compileKey(node.from, compiler) : undefined
+    let to = node.to ? compileKey(node.to, compiler) : undefined
+    return slice(from, to)
+  },
+  Spread: () => spread,
+  Recursive: () => recursive,
+  ID: () => id,
+  dqstring: (node) => value(node.value),
+  int: (node) => value(node.value),
+  placeholder: compilePlaceholder
+}
+
+const rootCompile = (node, items) => compile(node, items)
+
 export function dx (strs, ...items) {
-  return decoratePattern(compile(parse(strs, items), items))
+  return decoratePattern(rootCompile(parse(strs, items), items))
 }
 
 const p = (strs, ...items) => parse(strs, items)

@@ -28,7 +28,7 @@ export { id, fail, key, index, slice, where, value, regex, spread, recursive, co
 export { test, match, replace, updateAll } from './operations.js'
 
 // ### [Parser](parser.html)
-export { parse, compile, dx } from './parser.js'
+export { parse, dx } from './parser.js'
 
 // ---
 // ©2018 [Justin Falcone](https://justinfalcone.com/) | [DatEx on GitHub](https://github.com/modernserf/data-expressions) | [@modernserf](https://twitter.com/modernserf)
