@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 _TMP_CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-git checkout -b gh-pages &&
+git diff --exit-code &&
+    git checkout -b gh-pages &&
     npm run build:docs &&
     mv docs/* ./ &&
     git add . &&
