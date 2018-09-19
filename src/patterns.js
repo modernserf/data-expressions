@@ -98,8 +98,8 @@ export function test_type_patterns (expect, dx) {
 
 // ### `${key("foo")}`, `.foo`, `."foo"`,`.${"foo"}`
 // If the focus has the property `foo`, yields `focus.foo`.
-export const key = (key) => function * (focus) {
-  if (hasKey(focus, key)) {
+export const key = (key, optional = false) => function * (focus) {
+  if (hasKey(focus, key) || optional) {
     yield {
       match: focus[key],
       replace: (value) => ({ ...focus, [key]: value })
@@ -127,15 +127,8 @@ export function test_key_replace (expect, dx) {
     .toEqual({ baz: 2 })
 }
 
-// ### `${key.optional("foo")}`, `.foo?`, `."foo"?`, `.${"foo"}?`
+// #### `${key("foo", true)}`, `.foo?`, `."foo"?`, `.${"foo"}?`
 // A key followed by `?` will always succeed.
-key.optional = (key) => function * (focus) {
-  yield {
-    match: focus[key],
-    replace: (value) => ({ ...focus, [key]: value })
-  }
-}
-
 export function test_key_optional (expect, dx) {
   expect(dx`.baz?`.test({ foo: { bar: 1 } }))
     .toEqual(true)
@@ -151,16 +144,16 @@ export function test_key_optional_replace (expect, dx) {
 
 // ### `${index(1)}`, `.1` , `.${1}`
 // Use the value at index `1` in an array.
-export const index = (i) => function * (focus) {
+export const index = (i, optional = false) => function * (focus) {
   if (i < 0) { i = focus.length + i } // allow indexing from end
 
-  if (i in focus) {
+  if ((i in focus) || optional) {
     yield {
       match: focus[i],
       replace: (value) => {
         const copy = focus.slice(0)
         copy[i] = value
-        return copy
+        return Array.from(copy)
       }
     }
   }
@@ -190,22 +183,8 @@ export function test_index_fail (expect, dx) {
     .toEqual(['foo', 'bar', 'baz'])
 }
 
-// ### `${index.optional(1)}`,  `.1?` , `.${number}?`
-// As with keys, an index followed by `?` will always succeed.
-index.optional = (i) => function * (focus) {
-  if (i < 0) { i = focus.length + i }
-
-  yield {
-    match: focus[i],
-    replace: (value) => {
-      const copy = focus.slice(0)
-      copy[i] = value
-      return Array.from(copy)
-    }
-  }
-}
-
-// `.test` will always return true, and `.replace` will fill the array with `undefined` to that index.
+// #### `${index(1, true)}`,  `.1?` , `.${number}?`
+// As with keys, an index followed by `?` will always succeed. `.test` will always return true, and `.replace` will fill the array with `undefined` to that index.
 export function test_index_optional (expect, dx) {
   expect(dx`.5?`.test(['foo', 'bar', 'baz']))
     .toEqual(true)

@@ -46,7 +46,7 @@ export function parse (strs, items) {
   return results[0]
 }
 
-// Determine what kind of value is being interpolated -- if it's a string or an integer, it can be used as a key or index.
+// Determine what kind of value is being interpolated, so the parser can validate it's being used correctly.
 function typeForInterpolation (item) {
   switch (typeof item) {
     case 'string':
@@ -73,9 +73,6 @@ const exprTypes = (nodeTypes) => (node) => {
   return pattern(...args)
 }
 
-const opt = (pattern) => (value, optional) =>
-  optional ? pattern.optional(value) : pattern(value)
-
 const compilers = {
   raw: (x) => x,
   value: ({ value }) => value,
@@ -93,8 +90,8 @@ const compilers = {
     Cut: [limit, { value: 'expr' }],
     Object: [objectShape, { value: 'entries' }],
     Array: [arrayShape, { value: 'entries' }],
-    Key: [opt(keyPattern), { value: 'value', optional: 'raw' }],
-    Index: [opt(index), { value: 'value', optional: 'raw' }],
+    Key: [keyPattern, { value: 'value', optional: 'raw' }],
+    Index: [index, { value: 'value', optional: 'raw' }],
     Slice: [slice, { from: 'value', to: 'value' }],
     Spread: [spread],
     Recursive: [recursive],
