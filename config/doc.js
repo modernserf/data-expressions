@@ -5,6 +5,7 @@ const prism = require('prismjs')
 
 const SRC_DIR = './src'
 const DOCS_DIR = './docs'
+const TITLE = 'DatEx'
 const cwd = process.cwd()
 
 async function main () {
@@ -33,7 +34,7 @@ function * formatFile (name, data) {
       '<meta charset="utf-8">',
       '<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">',
       '<meta name="viewport" content="width=device-width,initial-scale=1">',
-      ...h('title', '', name),
+      ...h('title', '', `${name} | ${TITLE}`),
       '<link rel="stylesheet" type="text/css" href="doc.css" />'
     ]),
     ...h('body', '', body(data.split(/\n/).filter(removeEmpty)))
