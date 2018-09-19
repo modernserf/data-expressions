@@ -6,6 +6,7 @@
   "scripts": {
     "lint": "eslint .",
     "test": "npm run build:test && tape src/test.build.js | faucet",
+    "test:debug": "npm run build:test && node src/test.build.js",
     "test:docs": "npm run build:docs && open 'http://localhost:8080/' && http-server ./docs",
     "build:docs": "node config/doc.js",
     "build:cjs": "rollup src/index.js -o index.build.js -f cjs",

@@ -11,123 +11,113 @@ export function parse (strs, items) {
   }
   const { results } = parser
   if (results.length !== 1) {
-    console.error(results)
-    throw new Error('Parsing failed')
+    throw new Error('Parsing failed', results)
   }
   return results[0]
 }
 
-function compileKey (node, { items }) {
-  switch (node.type) {
-    case 'dqstring':
-    case 'ident':
-    case 'int':
-      return node.value
-    case 'placeholder':
-      const pvalue = items[node.value]
-      if (['string', 'number'].includes(typeof pvalue)) {
-        return pvalue
-      }
-  }
-  throw new Error('Invalid key type')
-}
-
-const compileEntry = ({ type, key, value, optional }, compile) => {
-  switch (type) {
-    case 'Entry':
-      return { type: 'Entry', key: compileKey(key, compile), value: compile(value), optional }
-    case 'ArrEntry':
-      return { type: 'ArrEntry', value: compile(value) }
-    case 'RestEntry':
-      return { type: 'RestEntry', value: compile(value) }
-    default:
-      throw new Error('Expected Entry Node')
-  }
-}
-
-function compilePlaceholder (node, { items }) {
-  const val = items[node.value]
+// helper patterns
+function placeholderValue (val) {
+  if (!val) { throw new Error('missing value') }
   switch (typeof val) {
     case 'function':
       return val
     case 'object':
       if (val instanceof RegExp) { return regex(val) }
-      return value(val)
+      throw new Error('unknown object type')
+      // return value(val)
     default:
       return value(val)
   }
 }
-
-const infix = (pattern) => (node, compile) =>
-  pattern(compile(node.left), compile(node.right))
-const postfix = (pattern) => (node, compile) =>
-  pattern(compile(node.value))
-const collection = (pattern) => (node, compile) =>
-  pattern(node.value.map((node) => compileEntry(node, compile)))
-
-const opt = (pattern, optional) => optional ? pattern.optional : pattern
-
-function compile (node, items) {
-  const compiler = (n) => compile(n, items)
-  compiler.items = items
-  if (!compilers[node.type]) {
-    throw new Error('Unknown AST Node')
+function keyOrIndex (value, optional) {
+  let pattern = { string: keyPattern, number: index }[typeof value]
+  if (!pattern) {
+    throw new Error('Invalid key type')
   }
-  return compilers[node.type](node, compiler)
+  pattern = optional ? pattern.optional : pattern
+  return pattern(value)
+}
+
+// compilers
+const exprTypes = (nodeTypes) => (node, items) => {
+  if (!nodeTypes[node.type]) {
+    throw new Error('Unknown Expr Node')
+  }
+  const [pattern, nodeShape] = nodeTypes[node.type]
+  if (!nodeShape) { return pattern }
+  const args = Object.entries(nodeShape).map(([key, type]) => {
+    if (node[key] === null) { return undefined }
+    return compilers[type](node[key], items)
+  })
+  return pattern(...args)
 }
 
 const compilers = {
-  Alt: infix(alt),
-  Seq: infix(seq),
-  And: postfix(and),
-  Cut: postfix(limit),
-  Object: collection(objectShape),
-  Array: collection(arrayShape),
-  Key: (node, compiler) => {
-    let key = compileKey(node.value, compile)
-    if (typeof key === 'string') {
-      return opt(keyPattern, node.optional)(key)
-    } else {
-      return opt(index, node.optional)(key)
+  value: (value) => value,
+  placeholder: (index, items) => items[index],
+  key: ({ type, value }, items) => {
+    switch (type) {
+      case 'dqstring':
+      case 'ident':
+      case 'int':
+        return value
+      case 'placeholder':
+        return compilers.placeholder(value, items)
     }
+    throw new Error('Invalid key type')
   },
-  Slice: (node, compiler) => {
-    let from = node.from ? compileKey(node.from, compiler) : undefined
-    let to = node.to ? compileKey(node.to, compiler) : undefined
-    return slice(from, to)
-  },
-  Spread: () => spread,
-  Recursive: () => recursive,
-  ID: () => id,
-  dqstring: (node) => value(node.value),
-  int: (node) => value(node.value),
-  placeholder: compilePlaceholder
+  entries: (entries, items) =>
+    entries.map(({ type, key, value, optional }) => ({
+      type,
+      key: key && compilers.key(key, items),
+      value: compilers.expr(value, items),
+      optional
+    })),
+  expr: exprTypes({
+    Alt: [alt, { left: 'expr', right: 'expr' }],
+    Seq: [seq, { left: 'expr', right: 'expr' }],
+    And: [and, { value: 'expr' }],
+    Cut: [limit, { value: 'expr' }],
+    Object: [objectShape, { value: 'entries' }],
+    Array: [arrayShape, { value: 'entries' }],
+    Key: [keyOrIndex, { value: 'key', optional: 'value' }],
+    Slice: [slice, { from: 'key', to: 'key' }],
+    Spread: [spread],
+    Recursive: [recursive],
+    ID: [id],
+    dqstring: [value, { value: 'value' }],
+    int: [value, { value: 'value' }],
+    placeholder: [placeholderValue, { value: 'placeholder' }]
+  })
 }
 
-const rootCompile = (node, items) => compile(node, items)
+export const dx = (strs, ...items) =>
+  decoratePattern(compilers.expr(parse(strs, items), items))
 
-export function dx (strs, ...items) {
-  return decoratePattern(rootCompile(parse(strs, items), items))
+// The `p` function takes the same arguments as `dx`, but returns the parsed syntax tree instead of the compiled pattern.
+function setupParseTester () {
+  const p = (strs, ...items) => parse(strs, items)
+  p.Key = (value, optional = false) => ({ type: 'Key', value, optional })
+  p.ident = (value) => ({ type: 'ident', value })
+  p.ph = (value) => ({ type: 'placeholder', value })
+  p.int = (value) => ({ type: 'int', value })
+  p.dqstring = (value) => ({ type: 'dqstring', value })
+  p.Spread = { type: 'Spread' }
+  p.Recursive = { type: 'Recursive' }
+  p.Array = (...value) => ({ type: 'Array', value })
+  p.Object = (...value) => ({ type: 'Object', value })
+  p.Seq = (left, right) => ({ type: 'Seq', left, right })
+  p.Slice = (from, to) => ({ type: 'Slice', from, to })
+  p.Entry = (key, value, optional = false) => ({ type: 'Entry', key, value, optional })
+  p.ArrEntry = (value) => ({ type: 'ArrEntry', value })
+  p.RestEntry = (value) => ({ type: 'RestEntry', value })
+  p.Cut = (value) => ({ type: 'Cut', value })
+  return p
 }
-
-const p = (strs, ...items) => parse(strs, items)
-p.Key = (value, optional = false) => ({ type: 'Key', value, optional })
-p.ident = (value) => ({ type: 'ident', value })
-p.ph = (value) => ({ type: 'placeholder', value })
-p.int = (value) => ({ type: 'int', value })
-p.dqstring = (value) => ({ type: 'dqstring', value })
-p.Spread = { type: 'Spread' }
-p.Recursive = { type: 'Recursive' }
-p.Array = (...value) => ({ type: 'Array', value })
-p.Object = (...value) => ({ type: 'Object', value })
-p.Seq = (left, right) => ({ type: 'Seq', left, right })
-p.Slice = (from, to) => ({ type: 'Slice', from, to })
-p.Entry = (key, value, optional = false) => ({ type: 'Entry', key, value, optional })
-p.ArrEntry = (value) => ({ type: 'ArrEntry', value })
-p.RestEntry = (value) => ({ type: 'RestEntry', value })
-p.Cut = (value) => ({ type: 'Cut', value })
 
 export function test_parser (expect) {
+  const p = setupParseTester()
   expect(p`.foo`).toEqual(p.Key(p.ident('foo')))
   expect(p`.${123}?`).toEqual(p.Key(p.ph(0), true))
   expect(p`.1`).toEqual(p.Key(p.int(1)))
@@ -155,12 +145,4 @@ export function test_parser (expect) {
       )),
       p.Key(p.int(3))
     ))
-}
-
-export function test_template_string (expect) {
-  expect(dx`.foo`.match({ foo: 1 })).toEqual(1)
-  expect([...dx`.foo | .bar`.matchAll({ foo: 1, bar: 2 })]).toEqual([1, 2])
-  expect(dx`.foo .bar`.match({ foo: { bar: 3 } })).toEqual(3)
-  expect(dx`.foo .0`.match({ foo: ['bar', 'baz'] })).toEqual('bar')
-  expect(dx`.foo.0`.match({ foo: ['bar', 'baz'] })).toEqual('bar')
 }
