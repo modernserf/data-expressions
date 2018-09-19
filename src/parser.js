@@ -1,11 +1,13 @@
 // DatEx uses tagged template strings to generate patterns.
 import grammar from './grammar.build.js'
-import { key as keyPattern, id, index, slice, value, arrayShape, objectShape, regex, seq, alt, and, spread, recursive, limit } from './patterns.js'
+import { key as keyPattern, id, index, slice, value as matchValue, arrayShape, objectShape, regex, seq, alt, and, spread, recursive, limit } from './patterns.js'
 import { decoratePattern } from './operations.js'
 const { Parser, Grammar } = require('nearley')
 const moo = require('moo')
 
-// The tokenizer converts the string fragments into tokens.
+// # Parser
+
+// Convert the string fragments into tokens.
 const tokenizer = moo.compile({
   int: { match: /-?\d+/, value: (x) => Number(x) },
   op: /[|&(){}[\],:?!_]|\*+|\.+/,
@@ -14,6 +16,7 @@ const tokenizer = moo.compile({
   ws: { match: /[ \t\n]+/, lineBreaks: true }
 })
 
+// Parse the strings and interpolated values into an AST.
 export function parse (strs, items) {
   // The parser is generated from the grammar in `src/grammar.ne`.
   const parser = new Parser(Grammar.fromCompiled(grammar))
@@ -61,51 +64,6 @@ function typeForInterpolation (item) {
       return 'value'
   }
 }
-
-// compilers
-const exprTypes = (nodeTypes) => (node) => {
-  const [pattern, nodeShape] = nodeTypes[node.type]
-  if (!nodeShape) { return pattern }
-  const args = Object.entries(nodeShape).map(([key, type]) => {
-    if (node[key] === null) { return undefined }
-    return compilers[type](node[key])
-  })
-  return pattern(...args)
-}
-
-const compilers = {
-  raw: (x) => x,
-  value: ({ value }) => value,
-  entries: (entries) =>
-    entries.map(({ type, key, value, optional }) => ({
-      type,
-      key: key && compilers.value(key),
-      value: compilers.expr(value),
-      optional
-    })),
-  expr: exprTypes({
-    Alt: [alt, { left: 'expr', right: 'expr' }],
-    Seq: [seq, { left: 'expr', right: 'expr' }],
-    And: [and, { value: 'expr' }],
-    Cut: [limit, { value: 'expr' }],
-    Object: [objectShape, { value: 'entries' }],
-    Array: [arrayShape, { value: 'entries' }],
-    Key: [keyPattern, { value: 'value', optional: 'raw' }],
-    Index: [index, { value: 'value', optional: 'raw' }],
-    Slice: [slice, { from: 'value', to: 'value' }],
-    Spread: [spread],
-    Recursive: [recursive],
-    ID: [id],
-    dqstring: [value, { value: 'raw' }],
-    int: [value, { value: 'raw' }],
-    value: [value, { value: 'raw' }],
-    func: [(x) => x, { value: 'raw' }],
-    regex: [regex, { value: 'raw' }]
-  })
-}
-
-export const dx = (strs, ...items) =>
-  decoratePattern(compilers.expr(parse(strs, items)))
 
 // The `p` function takes the same arguments as `dx`, but returns the parsed syntax tree instead of the compiled pattern.
 function setupParseTester () {
@@ -159,3 +117,52 @@ export function test_parser (expect) {
       p.Index(p.int(3))
     ))
 }
+
+// # Compiler
+
+// Compile the AST into a pattern, recursively compiling the child values of each node.
+const exprTypes = (nodeTypes) => (node) => {
+  const [pattern, nodeShape] = nodeTypes[node.type]
+  if (!nodeShape) { return pattern }
+  const args = Object.entries(nodeShape).map(([key, type]) => {
+    if (node[key] === null) { return undefined }
+    return compilers[type](node[key])
+  })
+  return pattern(...args)
+}
+
+const compilers = {
+  raw: (x) => x,
+  key: ({ value }) => value,
+  entries: (entries) =>
+    entries.map(({ type, key, value, optional }) => ({
+      type,
+      key: key && compilers.key(key),
+      value: compilers.expr(value),
+      optional
+    })),
+  // The first item in the array is the pattern to compile this AST node into; the second item maps the node's properties to how they should be recursively compiled.
+  expr: exprTypes({
+    Alt: [alt, { left: 'expr', right: 'expr' }],
+    Seq: [seq, { left: 'expr', right: 'expr' }],
+    And: [and, { value: 'expr' }],
+    Cut: [limit, { value: 'expr' }],
+    Object: [objectShape, { value: 'entries' }],
+    Array: [arrayShape, { value: 'entries' }],
+    Key: [keyPattern, { value: 'key', optional: 'raw' }],
+    Index: [index, { value: 'key', optional: 'raw' }],
+    Slice: [slice, { from: 'key', to: 'key' }],
+    Spread: [spread],
+    Recursive: [recursive],
+    ID: [id],
+    dqstring: [matchValue, { value: 'raw' }],
+    int: [matchValue, { value: 'raw' }],
+    value: [matchValue, { value: 'raw' }],
+    func: [(x) => x, { value: 'raw' }],
+    regex: [regex, { value: 'raw' }]
+  })
+}
+
+// Parse & compile the template string & interpolations, and decorate the resulting pattern with the `.match`, `.replace` etc. methods.
+export const dx = (strs, ...items) =>
+  decoratePattern(compilers.expr(parse(strs, items)))
