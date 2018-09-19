@@ -1,9 +1,11 @@
 @{%
-  import { _, tag, _2, cons, value, type, lit } from "./grammar-util.js";
+  import { _, tag, _2, cons, token, type, lit } from "./grammar-util.js";
   const int = type("int");
   const ident = type("ident");
   const dqstring = type("dqstring");
-  const jsvalue = type("jsvalue");
+  const value = type("value");
+  const func = type("func");
+  const regex = type("regex");
   const star2 = lit('**')
   const spread = lit('...')
 %}
@@ -31,9 +33,11 @@ BaseExpr -> "(" Expr ")"          {% _2 %}
          |  %star2                {% tag("Recursive") %}
          |  "*"                   {% tag("Spread") %}
          |  "_"                   {% tag("ID") %}
-         |  %jsvalue              {% value %}
-         |  %dqstring             {% value %}
-         |  %int                  {% value %}
+         |  %value                {% token %}
+         |  %dqstring             {% token %}
+         |  %int                  {% token %}
+         |  %func                 {% token %}
+         |  %regex                {% token %}
 
 Object   -> sep[Entry, ","]       {% id %}
 Entry    -> Key Opt ":" Expr      {% tag("Entry", "key", "optional", _, "value") %}
@@ -44,7 +48,7 @@ ArrEntry -> Expr                  {% tag("ArrEntry", "value") %}
 
 Slice -> "[" Int:? ":" Int:? "]"  {% tag("Slice", _, "from", _, "to") %}
 
-Int   -> %int                     {% value %}
-Key   -> %dqstring                {% value %}
-      |  %ident                   {% value %}
+Int   -> %int                     {% token %}
+Key   -> %dqstring                {% token %}
+      |  %ident                   {% token %}
 Opt   -> "?":?                    {% ([str]) => !!str %}

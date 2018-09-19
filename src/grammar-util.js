@@ -14,7 +14,7 @@ export function _2 (args) {
 export function cons ([h, t]) {
   return [h, ...t].map(([x]) => x)
 }
-export function value ([{ type, value }]) { return { type, value } }
+export function token ([{ type, value }]) { return { type, value } }
 
 export const type = (type) => ({ test: (x) => x.type === type })
 export const lit = (literal) => ({ literal })

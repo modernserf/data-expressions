@@ -1,11 +1,12 @@
-// DatEx uses tagged template strings to generate patterns. These strings are fed into a parser that uses a [Nearley](https://nearley.js.org/) grammar to parse them into an AST. This AST is then compiled into a pattern, which then is decorated with the `test`, `match`, `replace` etc methods.
+// DatEx uses tagged template strings to generate patterns.
 import grammar from './grammar.build.js'
 import { key as keyPattern, id, index, slice, value, arrayShape, objectShape, regex, seq, alt, and, spread, recursive, limit } from './patterns.js'
 import { decoratePattern } from './operations.js'
 const { Parser, Grammar } = require('nearley')
 const moo = require('moo')
 
-export const lexer = moo.compile({
+// The tokenizer converts the string fragments into tokens.
+const tokenizer = moo.compile({
   int: { match: /-?\d+/, value: (x) => Number(x) },
   op: /[|&(){}[\],:?!_]|\*+|\.+/,
   ident: /[A-Za-z_$][A-Za-z0-9_$]*/,
@@ -14,22 +15,29 @@ export const lexer = moo.compile({
 })
 
 export function parse (strs, items) {
+  // The parser is generated from the grammar in `src/grammar.ne`.
   const parser = new Parser(Grammar.fromCompiled(grammar))
-  for (let i = 0; i < strs.length; i++) {
-    const str = strs[i]
-    for (const tok of lexer.reset(str)) {
+  for (const str of strs) {
+    for (const tok of tokenizer.reset(str)) {
+      // Whitespace is dropped.
       if (tok.type === 'ws') {
         continue
+      // Operators & other punctuation are passed to the parser as bare strings.
       } else if (tok.type === 'op') {
         parser.feed([tok.value])
+      // All other tokens are fed to the parser.
       } else {
         parser.feed([tok])
       }
     }
-    if (items.length <= i) { continue }
-    parser.feed([nodeForInterpolation(items[i])])
+    // Feed the interpolated items into the parser.
+    if (items.length) {
+      const item = items.shift()
+      parser.feed([{ type: typeForInterpolation(item), value: item }])
+    }
   }
 
+  // If the parser has no results, parsing has failed; if the parser has > 1 result, the grammar is ambigous.
   const { results } = parser
   if (results.length !== 1) {
     console.error({ results })
@@ -38,32 +46,21 @@ export function parse (strs, items) {
   return results[0]
 }
 
-function nodeForInterpolation (item) {
-  const type = typeof item
-  if (type === 'string') {
-    return { type: 'dqstring', value: item }
-  } else if (type === 'number' && Math.floor(item) === item) {
-    return { type: 'int', value: item }
-  } else {
-    return { type: 'jsvalue', value: item }
-  }
-}
-
-// helper patterns
-function jsValue (val) {
-  switch (typeof val) {
+// Determine what kind of value is being interpolated -- if it's a string or an integer, it can be used as a key or index.
+function typeForInterpolation (item) {
+  switch (typeof item) {
+    case 'string':
+      return 'dqstring'
+    case 'number':
+      return Math.floor(item) === item ? 'int' : 'value'
     case 'function':
-      return val
+      return 'func'
     case 'object':
-      if (val instanceof RegExp) { return regex(val) }
-      return value(val)
+      return item instanceof RegExp ? 'regex' : 'value'
     default:
-      return value(val)
+      return 'value'
   }
 }
-
-const opt = (pattern) => (value, optional) =>
-  optional ? pattern.optional(value) : pattern(value)
 
 // compilers
 const exprTypes = (nodeTypes) => (node) => {
@@ -75,6 +72,9 @@ const exprTypes = (nodeTypes) => (node) => {
   })
   return pattern(...args)
 }
+
+const opt = (pattern) => (value, optional) =>
+  optional ? pattern.optional(value) : pattern(value)
 
 const compilers = {
   raw: (x) => x,
@@ -101,7 +101,9 @@ const compilers = {
     ID: [id],
     dqstring: [value, { value: 'raw' }],
     int: [value, { value: 'raw' }],
-    jsvalue: [jsValue, { value: 'raw' }]
+    value: [value, { value: 'raw' }],
+    func: [(x) => x, { value: 'raw' }],
+    regex: [regex, { value: 'raw' }]
   })
 }
 
