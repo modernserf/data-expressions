@@ -1,3 +1,4 @@
+// # Parser & Compiler
 // DatEx uses tagged template strings to generate patterns.
 import grammar from './grammar.build.js'
 import { key as keyPattern, id, index, slice, value as matchValue, arrayShape, objectShape, regex, seq, alt, and, spread, recursive, limit } from './patterns.js'
@@ -5,7 +6,7 @@ import { decoratePattern } from './operations.js'
 const { Parser, Grammar } = require('nearley')
 const moo = require('moo')
 
-// # Parser
+// ## Parser
 
 // Convert the string fragments into tokens.
 const tokenizer = moo.compile({
@@ -118,7 +119,7 @@ export function test_parser (expect) {
     ))
 }
 
-// # Compiler
+// ## Compiler
 
 // Compile the AST into a pattern, recursively compiling the child values of each node.
 const exprTypes = (nodeTypes) => (node) => {

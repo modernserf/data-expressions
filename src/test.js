@@ -2,6 +2,7 @@
 // This library has its code, documentation, and tests intertwingled; the tests act as examples for the code. This is made possible with Rollup's "tree-shaking" -- the tests aren't included in the bundled output.
 import * as patterns from './patterns.js'
 import * as parser from './parser.js'
+import * as operations from './operations.js'
 import * as index from './index.js'
 const tape = require('tape')
 
@@ -28,7 +29,7 @@ function tester (tape, key, cb) {
 }
 
 // If any of the exported values are test functions, run them with `tape`.
-for (const dep of [patterns, parser, index]) {
+for (const dep of [patterns, parser, operations, index]) {
   for (const key in dep) {
     tester(tape, key, (t) => {
       // Call the test with `expect` and `dx` as arguments.
