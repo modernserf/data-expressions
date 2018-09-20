@@ -7,7 +7,7 @@
 // ### `${where(fn)}`
 export const where = (fn) => function * (focus) {
   if (fn(focus)) {
-    yield { match: focus, replace: (value) => value }
+    yield { match: focus, replace: (fn) => fn(focus) }
   }
 }
 
@@ -102,7 +102,7 @@ export const key = (key, optional = false) => function * (focus) {
   if (hasKey(focus, key) || optional) {
     yield {
       match: focus[key],
-      replace: (value) => ({ ...focus, [key]: value })
+      replace: (fn) => ({ ...focus, [key]: fn(focus[key]) })
     }
   }
 }
@@ -150,9 +150,9 @@ export const index = (i, optional = false) => function * (focus) {
   if ((i in focus) || optional) {
     yield {
       match: focus[i],
-      replace: (value) => {
+      replace: (fn) => {
         const copy = focus.slice(0)
-        copy[i] = value
+        copy[i] = fn(focus[i])
         return Array.from(copy)
       }
     }
@@ -195,11 +195,12 @@ export function test_index_optional (expect, dx) {
 // ### `${slice(from, to)}`, `.[1:3]`, `.[${from}:${to}]`
 // Yields the slice of the array or string.
 export const slice = (start, end) => function * (focus) {
+  const match = focus.slice(start, end)
   yield {
-    match: focus.slice(start, end),
-    replace: (value) => [
+    match,
+    replace: (fn) => [
       ...focus.slice(0, start),
-      ...value,
+      ...fn(match),
       ...focus.slice(end)
     ]
   }
@@ -222,13 +223,13 @@ export function test_slice_replace (expect, dx) {
     .toEqual(['foo', 'bar', 1, 2, 3, 4, 5, 'baz', 'quux'])
 }
 
-// ### `${project(getter, setter)}`
+// ### `${lens(getter, setter)}`
 // Make a custom lens pattern from "getter" and "setter" functions.
 // If the match should fail, throw from in the getter function.
 export const lens = (get, set = (x) => x) => function * (focus) {
   try {
     const match = get(focus)
-    yield { match, replace: (value) => set(focus, value) }
+    yield { match, replace: (fn) => set(focus, fn(focus)) }
   } catch (e) {}
 }
 export function test_lens (expect, dx) {
@@ -264,7 +265,7 @@ export const regex = (re) => function * (focus) {
   if (!match) { return }
   yield {
     match: match[0],
-    replace: (val) => focus.replace(new RegExp(re), val)
+    replace: (fn) => focus.replace(new RegExp(re), fn)
   }
 
   // handle stateful regexes
@@ -273,12 +274,12 @@ export const regex = (re) => function * (focus) {
       let lastIndex = match.lastIndex
       yield {
         match: match[0],
-        replace: (val) => {
+        replace: (fn) => {
           // apply the replacement at match position,
           // but don't mutate match regex
           const reCopy = new RegExp(re)
           reCopy.lastIndex = lastIndex
-          return focus.replace(reCopy, val)
+          return focus.replace(reCopy, fn)
         }
       }
     }
@@ -378,7 +379,7 @@ const _seq = (x, y) => function * (focus) {
     for (const inner of y(outer.match)) {
       yield {
         match: inner.match,
-        replace: (value) => outer.replace(inner.replace(value))
+        replace: (fn) => outer.replace(() => inner.replace(fn))
       }
     }
   }
@@ -492,7 +493,7 @@ export const collect = (x, reducer = defaultReducer) => function * (focus) {
 function defaultReducer (l = { match: [], replace: () => [] }, r) {
   return {
     match: l.match.concat([r.match]),
-    replace: (value) => l.replace(value).concat([r.replace(value)])
+    replace: (fn) => l.replace(fn).concat([r.replace(fn)])
   }
 }
 
@@ -528,15 +529,15 @@ const entryReducer = (acc, entry) => function * (focus) {
     for (const inner of pattern(keyFocus)) {
       yield {
         match: { ...outer.match, [key]: inner.match },
-        replace: (value) => ({
-          ...outer.replace(value),
-          [key]: inner.replace(value[key])
+        replace: (fn) => ({
+          ...outer.replace(fn),
+          [key]: inner.replace((value) => fn(value)[key])
         })
       }
     }
   }
 }
-const objectInit = (focus) => [{ match: {}, replace: (value) => ({ ...focus, ...value }) }]
+const objectInit = (focus) => [{ match: {}, replace: (f) => ({ ...focus, ...f({}) }) }]
 
 // The pattern succeeds if all fields succeed.
 export function test_objectShape (expect, dx) {
@@ -593,8 +594,8 @@ export const arrayShape = (entries) => function * (focus) {
   const [headFocus, ...restFocus] = focus
   // base case
   if (!focus.length &&
-    (!entries.length || entry && entry.type === 'RestEntry')) {
-    yield { match: [], replace: () => [] }
+    (!entries.length || (entry && entry.type === 'RestEntry'))) {
+    yield { match: [], replace: (fn) => fn([]) }
     return
   }
   // fail: out of either focus or entries
@@ -611,9 +612,9 @@ export const arrayShape = (entries) => function * (focus) {
     for (const r of nextPattern(restFocus)) {
       yield {
         match: [h.match, ...r.match],
-        replace: ([value, ...restValue]) => [
-          h.replace(value),
-          ...r.replace(restValue)
+        replace: (fn) => [
+          h.replace(fn),
+          ...r.replace(fn)
         ]
       }
     }

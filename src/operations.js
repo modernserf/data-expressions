@@ -60,7 +60,7 @@ export function test_op_match (expect, dx) {
 // Returns the focus with its matched value replaced if the match succeded; otherwise returns the original focus.
 export function replace (pattern, focus, value) {
   for (const { replace } of pattern(focus)) {
-    return replace(value)
+    return replace(() => value)
   }
   return focus
 }
